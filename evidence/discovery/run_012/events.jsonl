@@ -1,0 +1,4 @@
+{"step": 1, "type": "error", "kind": "reloading", "message": "Reloading detected \u2014 waiting 2s before retry 1/2", "status": "retrying", "action": "navigate", "target": "post-login", "attempt": 1, "delay_sec": 2.0, "details": {}}
+{"step": 2, "type": "error", "kind": "reloading", "message": "Reloading detected \u2014 waiting 5s before retry 2/2", "status": "retrying", "action": "navigate", "target": "post-login", "attempt": 2, "delay_sec": 5.0, "details": {}}
+{"step": 3, "type": "error", "kind": "reloading", "message": "Recovered after reload wait (5s)", "status": "recovered", "action": "navigate", "target": "post-login", "actual_page": "/dashboard", "attempt": 2, "delay_sec": 5.0, "details": {}}
+{"step": 4, "type": "task_result", "operator": "open_account", "status": "pass", "outcome": "Account already exists"}

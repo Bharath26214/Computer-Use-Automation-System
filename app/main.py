@@ -8,7 +8,14 @@ import re
 from dotenv import load_dotenv
 
 from app.agent.discover import run_discovery
-from app.artifact.recorder import current_member_id, find_artifact_by_id
+from app.artifact.recorder import (
+    current_member_id,
+    find_artifact_by_id,
+    force_discovery,
+    force_discovery_for,
+    force_replay,
+    allow_discovery_fallback,
+)
 from app.artifact.replay import run_replay_with_fallbacks
 from app.browser.manager import BrowserManager
 from app.delete_account import run_delete_account
@@ -54,11 +61,13 @@ def void_remaining(task, reason: str = "previous step did not complete") -> str:
 
 def workflow_run_kind(tasks) -> str:
     """Prefer replay only when every planned operator already covers this member."""
-    from app.artifact.recorder import expected_error_kind_for_member
+    from app.artifact.recorder import expected_error_kind_for_member, force_discovery_for
 
     member_id = current_member_id()
     expected = expected_error_kind_for_member(member_id)
     for task in tasks:
+        if force_discovery_for(task.artifact_id):
+            return "discovery"
         if task.kind == "delete_account":
             from app.delete_account.runner import _operators_ready
 
@@ -85,10 +94,12 @@ async def run_task(
     task,
     browser_manager: BrowserManager,
     skip_auth: bool,
-    fallback_discovery: bool = True,
+    fallback_discovery: bool | None = None,
     run_logger: RunLogger | None = None,
     own_run: bool = True,
 ) -> str:
+    if fallback_discovery is None:
+        fallback_discovery = allow_discovery_fallback()
     if task.kind == "delete_account":
         return await run_delete_account(
             task,
@@ -126,7 +137,7 @@ async def run_task(
 
     member_id = current_member_id()
     artifact = find_artifact_by_id(task.artifact_id, member_id)
-    if artifact is not None:
+    if artifact is not None and not force_discovery_for(task.artifact_id):
         artifact_ref = f"{artifact.get('artifact_id')}/v{artifact.get('version')}"
         path = artifact.get("_path") or artifact.get("artifact_id")
         print(f"[replay] {artifact_ref} for {member_id} from {path} — LLM skipped")
@@ -170,6 +181,11 @@ async def run_task(
         return f"No {task.params.get('account') or 'requested'} account was visible."
     else:
         print(f"[discovery] no matching operator for {task.artifact_id}; routing to LLM")
+
+    if force_replay():
+        msg = f"No replayable {task.artifact_id} operator; discovery disabled."
+        print(f"[replay] {msg}")
+        return msg
 
     logger = run_logger
     if own_run or logger is None:
@@ -358,8 +374,26 @@ def main() -> None:
         default=None,
         help="Custom viewport height in pixels (with --width).",
     )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Auto-answer every human confirmation prompt with yes (HITL).",
+    )
+    parser.add_argument(
+        "-n",
+        "--no",
+        action="store_true",
+        help="Auto-answer every human confirmation prompt with no (HITL).",
+    )
     args = parser.parse_args()
     apply_cli_credentials(args.username)
+    if args.yes and args.no:
+        raise SystemExit("Use only one of --yes / --no.")
+    if args.yes:
+        os.environ["ATLAS_AUTO_CONFIRM"] = "yes"
+    elif args.no:
+        os.environ["ATLAS_AUTO_CONFIRM"] = "no"
     if args.viewport:
         os.environ["VIEWPORT"] = args.viewport
     if args.width:

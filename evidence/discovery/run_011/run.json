@@ -1,0 +1,239 @@
+{
+  "run_id": "run_011",
+  "type": "discovery",
+  "goal": "Delete my savings account",
+  "target_url": "http://localhost:5173/login",
+  "started_at": "2026-09-20T22:52:51Z",
+  "ended_at": "2026-09-20T22:53:36Z",
+  "status": "pass",
+  "outcome": "Completed",
+  "llm_used": true,
+  "llm_model": "openai/gpt-oss-20b",
+  "model_turns": 1,
+  "retries": 1,
+  "artifact_sequence": [
+    {
+      "order": 1,
+      "artifact": "lookup_balance/v3",
+      "mode": "discovery",
+      "created": false
+    },
+    {
+      "order": 2,
+      "artifact": "transfer_funds/v3",
+      "mode": "discovery",
+      "created": false
+    },
+    {
+      "order": 3,
+      "artifact": "delete_account/v3",
+      "mode": "discovery",
+      "created": true
+    }
+  ],
+  "operators_created": [
+    "delete_account/v3"
+  ],
+  "operators_used": [
+    "lookup_balance/v3",
+    "transfer_funds/v3"
+  ],
+  "artifact_created": "delete_account/v3",
+  "artifact_used": "lookup_balance/v3",
+  "guardrail_audit": [
+    {
+      "step": 1,
+      "action": "read",
+      "target": "savings-account",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    },
+    {
+      "step": 2,
+      "action": "click",
+      "target": "Transfer Money",
+      "status": "allowed",
+      "risk": "medium",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    },
+    {
+      "step": 3,
+      "action": "fill",
+      "target": "From Account",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 4,
+      "action": "fill",
+      "target": "To Account",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 5,
+      "action": "fill",
+      "target": "Amount",
+      "status": "allowed",
+      "risk": "medium",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 6,
+      "action": "click",
+      "target": "Review Transfer",
+      "status": "allowed",
+      "risk": "medium",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 7,
+      "action": "click",
+      "target": "Confirm Transfer",
+      "status": "allowed",
+      "risk": "high",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 8,
+      "action": "click",
+      "target": "Transactions",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 9,
+      "action": "read",
+      "target": "transaction-table",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transactions)"
+    },
+    {
+      "step": 10,
+      "action": "click",
+      "target": "Dashboard",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transactions)"
+    }
+  ],
+  "error_events": [
+    {
+      "kind": "reloading",
+      "message": "Reloading detected \u2014 waiting 2s before retry 1/2",
+      "status": "retrying",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": null,
+      "attempt": 1,
+      "delay_sec": 2.0,
+      "details": {}
+    },
+    {
+      "kind": "reloading",
+      "message": "Reloading detected \u2014 waiting 5s before retry 2/2",
+      "status": "retrying",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": null,
+      "attempt": 2,
+      "delay_sec": 5.0,
+      "details": {}
+    },
+    {
+      "kind": "reloading",
+      "message": "Recovered after reload wait (5s)",
+      "status": "recovered",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": "/dashboard",
+      "attempt": 2,
+      "delay_sec": 5.0,
+      "details": {}
+    },
+    {
+      "kind": "reloading",
+      "message": "Reloading detected \u2014 waiting 2s before retry 1/2",
+      "status": "retrying",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": null,
+      "attempt": 1,
+      "delay_sec": 2.0,
+      "details": {}
+    },
+    {
+      "kind": "reloading",
+      "message": "Reloading detected \u2014 waiting 5s before retry 2/2",
+      "status": "retrying",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": null,
+      "attempt": 2,
+      "delay_sec": 5.0,
+      "details": {}
+    },
+    {
+      "kind": "reloading",
+      "message": "Recovered after reload wait (5s)",
+      "status": "recovered",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": "/dashboard",
+      "attempt": 2,
+      "delay_sec": 5.0,
+      "details": {}
+    }
+  ],
+  "checkpoints": null,
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900,
+    "locator_policy": "dom_only"
+  },
+  "screenshots": [
+    "screenshots/error_reloading.png",
+    "screenshots/success_transfer_done.png"
+  ],
+  "transfer": "transfer.md",
+  "task_results": [
+    {
+      "status": "pass",
+      "outcome": "Completed",
+      "artifact": "delete_account"
+    }
+  ],
+  "final_response": "Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organization `org_01k2q5tf8af56ac4sgxdngbf3b` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199257, Requested 1216. Please try again in 3m24.335999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}"
+}

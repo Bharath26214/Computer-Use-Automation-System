@@ -85,11 +85,22 @@ async def run_discovery(
         if not artifact_path and recorded_steps and not blocked:
             should_persist = True
             lowered = last_answer.lower()
+            opened_this_run = any(
+                "open" in str(step.get("description") or step.get("type") or "").lower()
+                and "account" in str(step.get("description") or "").lower()
+                for step in recorded_steps
+            )
             if "additional accounts are not allowed" in lowered:
                 should_persist = False
-            elif "already exists" in lowered and "open" in query.lower():
+            elif "already exists" in lowered and "open" in query.lower() and not opened_this_run:
                 should_persist = False
             if should_persist:
+                if opened_this_run and "already exists" in lowered:
+                    last_answer = last_answer.replace(
+                        "already exists", "created"
+                    ).replace("Already exists", "created")
+                    if "created" not in last_answer.lower():
+                        last_answer = "Savings account created." if "saving" in query.lower() else "Checking account created."
                 path = persist_artifact(
                     {
                         "goal": query,

@@ -285,10 +285,60 @@ def current_member_id() -> str:
     return (os.getenv("BANK_USERNAME") or "alex123").strip()
 
 
+def force_discovery() -> bool:
+    """When set, discovery harness is active (may be scoped to one artifact)."""
+    return (os.getenv("ATLAS_FORCE_DISCOVERY") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def force_discovery_artifact() -> str | None:
+    """If set, only this operator is forced to discovery; siblings may still replay."""
+    value = (os.getenv("ATLAS_FORCE_DISCOVERY_ARTIFACT") or "").strip()
+    return value or None
+
+
+def force_discovery_for(artifact_id: str | None = None) -> bool:
+    """
+    Force discovery for this operator only.
+
+    Discovery tests set ATLAS_FORCE_DISCOVERY=1 and
+    ATLAS_FORCE_DISCOVERY_ARTIFACT=<capability under test>, so nested steps
+    inside delete_account (lookup / transfer) still replay when operators exist.
+    """
+    if not force_discovery():
+        return False
+    target = force_discovery_artifact()
+    if not target:
+        return True
+    if not artifact_id:
+        return True
+    return str(artifact_id) == target
+
+
+def force_replay() -> bool:
+    """When set, runners never fall back to discovery (replay test harness)."""
+    return (os.getenv("ATLAS_FORCE_REPLAY") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def allow_discovery_fallback() -> bool:
+    """Discovery fallback is off for forced-replay runs."""
+    if force_replay():
+        return False
+    return True
+
+
 # Demo members whose post-login gate is a distinct error capability.
 MEMBER_ERROR_SCENARIOS: dict[str, str] = {
     "casey404": "page_not_found",
-    "morgan789": "human_intervention",
     "taylor321": "reloading",
     "blake000": "hard_failure",
 }
@@ -1157,11 +1207,11 @@ def _artifact_error_events(error_handling: Any) -> list[dict[str, Any]] | None:
 
 
 def save_artifact(artifact: dict[str, Any]) -> Path:
-    """Write operators/{artifact_id}/vN.json (versioned; no personal names stored).
+    """Persist operators/{artifact_id}/vN.json.
 
-    Same DOM steps + same handled-error set reuse a version. A different
-    error set (including blank vs non-blank) is a new capability → new vN.
-    error_handling stays blank {} until at least one handled error is observed.
+    New version only when DOM steps change or the handled-error set differs
+    (e.g. blank vs page_not_found / reloading). Same steps + same errors update
+    the existing file in place — same user rediscovery does not spawn v2.
     """
     artifact_id = str(artifact["artifact_id"])
     incoming_errors = artifact.get("error_handling") or {}
@@ -1173,8 +1223,6 @@ def save_artifact(artifact: dict[str, Any]) -> Path:
     same_capability = _find_same_capability(
         artifact_id, artifact.get("steps"), artifact.get("error_handling")
     )
-    same_steps = _find_same_steps(artifact_id, artifact.get("steps"))
-
     if same_capability is not None:
         existing = same_capability
         existing["query_signatures"] = _merge_signatures(
@@ -1205,20 +1253,14 @@ def save_artifact(artifact: dict[str, Any]) -> Path:
         write_metadata(artifact_id, int(existing.get("version") or 1))
         return path
 
-    if same_steps is not None:
-        # Same steps, different error capability → fork a version.
-        new_kinds = _error_kinds(artifact.get("error_handling"))
-        old_kinds = _error_kinds(same_steps.get("error_handling"))
-        if new_kinds - old_kinds:
-            artifact["error_handling"] = _merge_error_handling(
-                same_steps.get("error_handling"),
-                _artifact_error_events(artifact.get("error_handling")),
-            )
+    # Different steps or different error set → append a new version; keep older files.
+    prior = _find_same_steps(artifact_id, artifact.get("steps"))
+    if prior is not None:
         artifact["query_signatures"] = _merge_signatures(
-            same_steps.get("query_signatures"),
+            prior.get("query_signatures"),
             artifact.get("query_signatures"),
         )
-        validated = [str(item) for item in (same_steps.get("viewports_validated") or [])]
+        validated = [str(item) for item in (prior.get("viewports_validated") or [])]
         for item in artifact.get("viewports_validated") or []:
             if str(item) not in validated:
                 validated.append(str(item))
@@ -1226,12 +1268,15 @@ def save_artifact(artifact: dict[str, Any]) -> Path:
         if profile and str(profile) not in validated:
             validated.append(str(profile))
         artifact["viewports_validated"] = validated
-        if not artifact.get("viewport") and same_steps.get("viewport"):
-            artifact["viewport"] = same_steps["viewport"]
+        if not artifact.get("viewport") and prior.get("viewport"):
+            artifact["viewport"] = prior["viewport"]
+        # Keep this version's own error set (do not union prior scenario errors).
 
     folder = artifact_dir(artifact_id)
     folder.mkdir(parents=True, exist_ok=True)
     version = _latest_version_number(artifact_id) + 1
+    while artifact_path_for(artifact_id, version).exists():
+        version += 1
     artifact["version"] = version
     artifact.setdefault("locator_policy", "dom_only")
     artifact.setdefault("error_handling", {})

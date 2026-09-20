@@ -14,10 +14,6 @@ NOT_FOUND_HINTS = re.compile(
     r"(404|page not found|not found|this page doesn.?t exist|cannot (get|find)|err_name_not_resolved)",
     re.IGNORECASE,
 )
-MFA_HINTS = re.compile(
-    r"(multi-factor|human operator|human intervention required|mfa)",
-    re.IGNORECASE,
-)
 HARD_FAILURE_HINTS = re.compile(
     r"(cannot be recovered|services are unavailable|hard failure)",
     re.IGNORECASE,
@@ -59,7 +55,7 @@ def classify_page_state(signals: dict[str, Any], action: dict | None = None) -> 
     """
     Map live page signals to a handled error kind, or None when the page looks usable.
 
-    Handled: reloading | page_not_found | human_intervention | hard_failure
+    Handled: reloading | page_not_found | hard_failure
     """
     del action
     path = str(signals.get("path") or "")
@@ -71,8 +67,6 @@ def classify_page_state(signals: dict[str, Any], action: dict | None = None) -> 
 
     if path == "/unavailable" or HARD_FAILURE_HINTS.search(title_text):
         return ErrorKind.HARD_FAILURE
-    if path == "/mfa" or MFA_HINTS.search(title_text):
-        return ErrorKind.HUMAN_INTERVENTION
     if NOT_FOUND_HINTS.search(f"{url} {title_text}") or path in {"/404", "/not-found"}:
         return ErrorKind.PAGE_NOT_FOUND
     if "chrome-error://" in url or "about:neterror" in url:

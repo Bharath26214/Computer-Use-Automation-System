@@ -1,0 +1,100 @@
+{
+  "artifact_id": "lookup_balance",
+  "version": 2,
+  "title": "Lookup account balance",
+  "description": "Sign in with a member ID, open the dashboard, and read the Checking or Savings balance from a stable test id.",
+  "locator_policy": "dom_only",
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900
+  },
+  "viewports_validated": [
+    "desktop"
+  ],
+  "error_handling": {
+    "page_not_found": {
+      "description": "Target route returned 404 / page not found.",
+      "policy": "one_retry",
+      "delays_sec": [
+        1
+      ],
+      "max_attempts": 1,
+      "recorded_occurrences": 1,
+      "last_message": "Handled page_not_found for member casey404",
+      "last_status": "recovered"
+    }
+  },
+  "inputs": {
+    "member_id": {
+      "type": "string",
+      "required": true,
+      "description": "Opaque member login id: letters followed by exactly three digits. Do not store real personal names in artifacts; supply this at invoke time.",
+      "pattern": "^[A-Za-z]+\\d{3}$",
+      "example": "alex123"
+    },
+    "account": {
+      "type": "string",
+      "required": true,
+      "description": "Which product balance to read.",
+      "enum": [
+        "Checking",
+        "Savings"
+      ],
+      "example": "Checking"
+    },
+    "bank_url": {
+      "type": "string",
+      "required": false,
+      "description": "Atlas Bank login URL for this environment.",
+      "example": "http://localhost:5173/login"
+    }
+  },
+  "outputs": {
+    "balance": {
+      "type": "currency",
+      "description": "Available balance string extracted from the account card.",
+      "shape": "$X,XXX.XX",
+      "example": "$2,180.40"
+    }
+  },
+  "steps": [
+    {
+      "id": "step_1",
+      "type": "read",
+      "description": "Read account balance \u2014 read {{account_testid}}",
+      "risk": "low",
+      "target": {
+        "strategy": "testid",
+        "value": "{{account_testid}}",
+        "robustness": "Prefer data-testid attributes; they are stable across copy changes and less brittle than visible text.",
+        "interaction": "dom"
+      }
+    }
+  ],
+  "success_conditions": [
+    {
+      "id": "member_details_visible",
+      "description": "Signed-in member chrome is visible on the page.",
+      "required": true
+    },
+    {
+      "id": "savings_balance_visible",
+      "description": "Savings account balance card/text is present.",
+      "required": true
+    },
+    {
+      "id": "checking_balance_visible",
+      "description": "Checking account balance card/text is present.",
+      "required": true
+    },
+    {
+      "id": "transfer_id_visible",
+      "description": "A transfer id or matching ledger rows are available.",
+      "required": true
+    }
+  ],
+  "query_signatures": [
+    "what is my checking account balance"
+  ]
+}

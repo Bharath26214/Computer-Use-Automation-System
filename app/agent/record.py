@@ -57,10 +57,24 @@ async def record(
                 and ("open" in str(state.get("goal") or "").lower() or "creat" in str(state.get("goal") or "").lower())
             )
         )
-        if open_failed:
+        opened_this_run = any(
+            "open" in str(step.get("description") or "").lower()
+            and "account" in str(step.get("description") or "").lower()
+            for step in steps
+        )
+        if open_failed and not opened_this_run:
             updates["status"] = "open_account_rejected"
             print("[operator] skipped save: open account is not valid for this member")
         else:
+            if opened_this_run and "already exists" in finish_text:
+                # Successful open click then mistaken "already exists" finish — still save.
+                updates["answer"] = updates.get("answer") or (
+                    str(action.get("value") or "").replace(
+                        "already exists", "created"
+                    )
+                    if action.get("value")
+                    else None
+                )
             path = persist_artifact(
                 {
                     **state,

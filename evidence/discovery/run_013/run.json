@@ -1,0 +1,86 @@
+{
+  "run_id": "run_013",
+  "type": "discovery",
+  "goal": "What is my checking account balance?",
+  "target_url": "http://localhost:5173/login",
+  "started_at": "2026-09-20T22:53:50Z",
+  "ended_at": "2026-09-20T22:53:55Z",
+  "status": "failed",
+  "outcome": "Hard failure",
+  "llm_used": false,
+  "llm_model": null,
+  "model_turns": 0,
+  "retries": 0,
+  "artifact_sequence": [],
+  "operators_created": [],
+  "operators_used": [],
+  "artifact_created": null,
+  "artifact_used": null,
+  "guardrail_audit": [],
+  "error_events": [
+    {
+      "kind": "hard_failure",
+      "message": "Hard failure \u2014 retrying once, then cannot recover",
+      "status": "retrying",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": null,
+      "attempt": 1,
+      "delay_sec": 1.0,
+      "details": {
+        "scenario": "hard_failure"
+      }
+    },
+    {
+      "kind": "hard_failure",
+      "message": "Cannot be recovered: hard failure remains after retry (no other error paths for this member)",
+      "status": "terminal",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": "/unavailable",
+      "attempt": 1,
+      "delay_sec": 1.0,
+      "details": {
+        "scenario": "hard_failure"
+      }
+    }
+  ],
+  "checkpoints": {
+    "saved_at": "2026-09-20T22:53:55Z",
+    "run_id": "run_013",
+    "checkpoints": {},
+    "error": {
+      "kind": "hard_failure",
+      "message": "Cannot be recovered: hard failure remains after retry (no other error paths for this member)",
+      "status": "terminal",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": "/unavailable",
+      "attempt": 1,
+      "delay_sec": 1.0,
+      "details": {
+        "scenario": "hard_failure"
+      }
+    }
+  },
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900,
+    "locator_policy": "dom_only"
+  },
+  "screenshots": [
+    "screenshots/error_hard_failure.png"
+  ],
+  "task_results": [
+    {
+      "status": "failed",
+      "outcome": "Hard failure",
+      "artifact": "lookup_balance"
+    }
+  ],
+  "final_response": "Cannot be recovered: hard failure remains after retry (no other error paths for this member)"
+}

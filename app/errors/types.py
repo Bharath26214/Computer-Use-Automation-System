@@ -9,7 +9,8 @@ class ErrorKind(str, Enum):
     """
     Faults the system is designed to handle (and stamp on operator artifacts).
 
-    normal / reloading / page_not_found / human_intervention / hard_failure
+    Artifact catalog: normal / reloading / page_not_found / hard_failure.
+    human_intervention is runtime-only (guardrail HITL), not stored on operators.
     """
 
     NORMAL = "normal"
@@ -48,11 +49,6 @@ ERROR_POLICIES: dict[str, dict[str, Any]] = {
         "delays_sec": [1],
         "max_attempts": 1,
     },
-    ErrorKind.HUMAN_INTERVENTION.value: {
-        "description": "Operator must approve or reject (e.g. MFA / human operator).",
-        "policy": "approval_or_reject",
-        "outcomes": ["approved", "rejected", "timeout"],
-    },
     ErrorKind.HARD_FAILURE.value: {
         "description": "Terminal failure after retry — no other error paths.",
         "policy": "one_retry_then_terminal",
@@ -90,7 +86,7 @@ class RuntimeErrorEvent:
 
 def default_error_handling_catalog() -> dict[str, Any]:
     """
-    Full policy reference for the five handled cases.
+    Full policy reference for handled artifact cases.
 
     Operator artifacts do NOT stamp this by default — they store only errors
     actually handled in a run (blank {} when none).
@@ -113,6 +109,8 @@ def catalog_kind(kind: str | ErrorKind | None) -> str | None:
     aliases = {
         "cannot_recover": ErrorKind.HARD_FAILURE.value,
         "ui_changed": None,  # not a handled artifact error
+        "human_intervention": None,  # runtime HITL only; not stored on operators
+        "mfa": None,
     }
     if value in aliases:
         return aliases[value]

@@ -254,11 +254,17 @@ async def act(state: dict, browser_manager: BrowserManager) -> dict:
                 local_result = f"Clicked {target}"
             if local_result.startswith("Clicked"):
                 await page.wait_for_load_state("networkidle")
+                run_logger = state.get("run_logger")
                 if "confirm transfer" in str(target).lower():
                     try:
                         await page.get_by_test_id("transfer-success").wait_for(
                             state="visible",
                             timeout=8000,
+                        )
+                        from app.run.screenshots import capture_run_screenshot
+
+                        await capture_run_screenshot(
+                            run_logger, page, "success_transfer_done"
                         )
                     except Exception:
                         pass
@@ -267,6 +273,11 @@ async def act(state: dict, browser_manager: BrowserManager) -> dict:
                         await page.get_by_test_id("open-account-message").wait_for(
                             state="visible",
                             timeout=4000,
+                        )
+                        from app.run.screenshots import capture_run_screenshot
+
+                        await capture_run_screenshot(
+                            run_logger, page, "success_account_opened"
                         )
                     except Exception:
                         pass

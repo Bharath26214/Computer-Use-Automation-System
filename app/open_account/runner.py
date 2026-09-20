@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import json
 
-from app.artifact.recorder import current_member_id, find_artifact_by_id
+from app.artifact.recorder import (
+    current_member_id,
+    find_artifact_by_id,
+    force_discovery_for,
+    force_replay,
+    allow_discovery_fallback,
+)
 from app.artifact.replay import run_replay_with_fallbacks
 from app.browser.accounts import (
     account_is_open,
@@ -56,7 +62,7 @@ def _normalize_answer(account: str, name: str, use: str, answer: str) -> str:
     lowered = text.lower()
     if "additional accounts are not allowed" in lowered:
         return text
-    if "already exists" in lowered or "already have a" in lowered:
+    if ("already exists" in lowered or "already have a" in lowered) and "created" not in lowered:
         return text
     if any(
         marker in lowered
@@ -109,7 +115,7 @@ async def run_open_account(
     print(f"[open_account] creating {account} named {name} ({use})")
     member_id = current_member_id()
     artifact = find_artifact_by_id(OPEN_ACCOUNT, member_id)
-    use_stored = _artifact_has_open_click(artifact)
+    use_stored = (not force_discovery_for(OPEN_ACCOUNT)) and _artifact_has_open_click(artifact)
 
     def _finish(logger: RunLogger, answer: str, error: str | None = None) -> None:
         if own_run:
@@ -149,6 +155,18 @@ async def run_open_account(
             answer = str(result.get("answer") or result.get("error") or "")
             _finish(logger, answer)
             return answer
+        error = str(result.get("error") or result.get("status") or "UI changed")
+        if not allow_discovery_fallback():
+            print(f"[replay] failed: {error}; discovery fallback disabled")
+            _finish(logger, error, error=error)
+            return error
+        print(f"[replay] failed: {error}; falling back to LLM discovery")
+
+    if force_replay():
+        msg = f"No replayable {OPEN_ACCOUNT} operator for {member_id}."
+        print(f"[replay] {msg}")
+        _finish(logger if logger is not None else RunLogger("replay", task.goal), msg, error=msg)
+        return msg
 
     if own_run or logger is None:
         logger = RunLogger("discovery", task.goal)

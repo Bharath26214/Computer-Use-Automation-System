@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -9,9 +10,11 @@ from typing import Any
 from app.run.outcome import classify_run
 
 ROOT = Path(__file__).resolve().parents[2]
-RUNS_DIR = ROOT / "runs"
+RUNS_DIR = ROOT / "evidence"
 
 SECRET_TARGETS = ("password", "pass", "member", "user")
+
+_SCREENSHOT_SAFE = re.compile(r"[^a-zA-Z0-9_-]+")
 
 
 def utc_now() -> str:
@@ -113,6 +116,7 @@ class RunLogger:
         self._model_turns = 0
         self._retries = 0
         self._final_response: str | None = None
+        self._transfer_body: str | None = None
         used = list(operators_used or [])
         if artifact_used and artifact_used not in used:
             used.append(artifact_used)
@@ -317,13 +321,109 @@ class RunLogger:
         print(f"[run] statement {path}")
         return path
 
-    def write_transfer(self, markdown: str) -> Path:
+    def screenshots_dir(self) -> Path:
+        path = self.run_dir / "screenshots"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    async def capture_screenshot(self, page: Any, name: str) -> Path | None:
+        """
+        Capture a full-page Playwright screenshot into this run folder.
+
+        Files land under evidence/{discovery|replay}/run_NNN/screenshots/{name}.png
+        and are listed on run.json as meta["screenshots"].
+        """
+        if page is None:
+            return None
+        safe = _SCREENSHOT_SAFE.sub("_", (name or "shot").strip()).strip("_") or "shot"
+        path = self.screenshots_dir() / f"{safe}.png"
+        try:
+            await page.screenshot(path=str(path), full_page=True)
+        except Exception as exc:
+            print(f"[run] screenshot failed ({safe}): {exc}")
+            return None
+        rel = f"screenshots/{path.name}"
+        shots = list(self.meta.get("screenshots") or [])
+        if rel not in shots:
+            shots.append(rel)
+        self.meta["screenshots"] = shots
+        self._write_meta()
+        print(f"[run] screenshot {path}")
+        return path
+
+    @staticmethod
+    def _transfer_table_body(markdown: str) -> str:
+        """Keep the ledger table; drop any prior Status/Outcome header."""
+        lines = (markdown or "").splitlines()
+        start = 0
+        while start < len(lines) and not lines[start].startswith("|"):
+            start += 1
+        body = "\n".join(lines[start:]).strip()
+        return f"{body}\n" if body else ""
+
+    @staticmethod
+    def _status_label(status: str | None) -> str:
+        value = (status or "").strip().lower()
+        if value in {"pass", "success"}:
+            return "success"
+        if value in {"failed", "fail", "failure", "blocked", "cancelled"}:
+            return "failure"
+        return "success" if not value else value
+
+    def _compose_transfer_markdown(
+        self,
+        body: str,
+        *,
+        status: str | None = "success",
+        outcome: str | None = None,
+    ) -> str:
+        lines = [f"**Status:** {self._status_label(status)}"]
+        if outcome:
+            lines.append(f"**Outcome:** {outcome}")
+        lines.append("")
+        table = self._transfer_table_body(body).rstrip()
+        if table:
+            lines.append(table)
+        lines.append("")
+        return "\n".join(lines)
+
+    def write_transfer(
+        self,
+        markdown: str,
+        *,
+        status: str | None = "success",
+        outcome: str | None = None,
+    ) -> Path:
+        body = self._transfer_table_body(markdown)
+        self._transfer_body = body
         path = self.run_dir / "transfer.md"
-        path.write_text(markdown, encoding="utf-8")
+        path.write_text(
+            self._compose_transfer_markdown(body, status=status, outcome=outcome),
+            encoding="utf-8",
+        )
         self.meta["transfer"] = "transfer.md"
         self._write_meta()
         print(f"[run] transfer {path}")
         return path
+
+    def _refresh_transfer_status(
+        self,
+        status: str,
+        outcome: str | None = None,
+    ) -> None:
+        """Stamp final run success/failure onto transfer.md when present."""
+        path = self.run_dir / "transfer.md"
+        body = getattr(self, "_transfer_body", None)
+        if not body and path.is_file():
+            body = self._transfer_table_body(path.read_text(encoding="utf-8"))
+        if not body:
+            return
+        self._transfer_body = body
+        path.write_text(
+            self._compose_transfer_markdown(body, status=status, outcome=outcome),
+            encoding="utf-8",
+        )
+        self.meta["transfer"] = "transfer.md"
 
     def finish(
         self,
@@ -389,6 +489,7 @@ class RunLogger:
             self.meta["final_response"] = self._final_response
         if error:
             self.meta["error"] = error
+        self._refresh_transfer_status(final_status, final_outcome)
         self._write_meta()
         self._write_summary()
         print(f"[run] {self.kind} {self.run_id} {final_status} ({final_outcome})")

@@ -17,6 +17,7 @@ from app.errors.types import (
 from app.guardrails.ui import expected_page_for_action
 from app.run.confirm import ConfirmationTimeout, ask_yes_no
 from app.run.logger import RunLogger
+from app.run.screenshots import capture_run_screenshot
 
 ExecuteFn = Callable[[], Awaitable[str]]
 
@@ -121,6 +122,7 @@ async def recover_reloading(
 ) -> RuntimeErrorEvent:
     """Wait 2s, re-check; wait 5s, re-check; otherwise cannot recover."""
     action = action or {}
+    await capture_run_screenshot(run_logger, page, "error_reloading")
     delays = list(ERROR_POLICIES[ErrorKind.RELOADING.value]["delays_sec"])
     last = RuntimeErrorEvent(
         kind=ErrorKind.RELOADING,
@@ -166,6 +168,7 @@ async def recover_page_not_found(
 ) -> RuntimeErrorEvent:
     """One retry: reload current URL or re-navigate to the intended target."""
     action = action or {}
+    await capture_run_screenshot(run_logger, page, "error_page_not_found")
     event = RuntimeErrorEvent(
         kind=ErrorKind.PAGE_NOT_FOUND,
         message="Page not found — retrying once",
@@ -247,6 +250,7 @@ async def recover_hard_failure(
     No other error kinds are mixed in for this user.
     """
     action = action or {}
+    await capture_run_screenshot(run_logger, page, "error_hard_failure")
     event = RuntimeErrorEvent(
         kind=ErrorKind.HARD_FAILURE,
         message="Hard failure — retrying once, then cannot recover",
@@ -288,46 +292,6 @@ async def recover_hard_failure(
     return event
 
 
-async def recover_mfa_gate(
-    page,
-    *,
-    action: dict | None = None,
-    run_logger: RunLogger | None = None,
-    checkpoints: dict[str, Any] | None = None,
-) -> RuntimeErrorEvent:
-    """morgan789: ask human operator, then click MFA Approve to open the app."""
-    action = action or {}
-    hitl = await handle_human_intervention(
-        prompt=(
-            "Human intervention required: multi-factor authentication / human operator "
-            "gate. Approve to continue sign-in? (yes/no)"
-        ),
-        action=action,
-        run_logger=run_logger,
-        checkpoints=checkpoints,
-    )
-    if hitl.status != RecoveryStatus.APPROVED:
-        return hitl
-    try:
-        await page.get_by_test_id("mfa-approve").click(timeout=5000)
-        await page.wait_for_load_state("networkidle")
-    except Exception as exc:
-        fail = RuntimeErrorEvent(
-            kind=ErrorKind.HARD_FAILURE,
-            message=f"Cannot be recovered: MFA approve click failed ({exc})",
-            status=RecoveryStatus.TERMINAL,
-            action=action.get("action"),
-            target=action.get("target"),
-        )
-        await _log_event(run_logger, fail)
-        await save_mid_run_checkpoint(run_logger, checkpoints=checkpoints, event=fail)
-        return fail
-    hitl.status = RecoveryStatus.RECOVERED
-    hitl.message = "Human intervention: approved — opened after MFA"
-    await _log_event(run_logger, hitl)
-    return hitl
-
-
 async def prepare_page_for_action(
     page,
     action: dict,
@@ -336,13 +300,12 @@ async def prepare_page_for_action(
     checkpoints: dict[str, Any] | None = None,
 ) -> RuntimeErrorEvent | None:
     """
-    Pre-flight for scenario pages + reload / 404 / MFA / hard failure.
+    Pre-flight for scenario pages + reload / 404 / hard failure.
 
     UI route mismatch for normal actions remains a guardrail concern.
     """
     from app.errors.detect import (
         HARD_FAILURE_HINTS,
-        MFA_HINTS,
         NOT_FOUND_HINTS,
         RELOADING_HINTS,
     )
@@ -356,10 +319,6 @@ async def prepare_page_for_action(
 
     if path == "/unavailable" or HARD_FAILURE_HINTS.search(title_text):
         return await recover_hard_failure(
-            page, action=action, run_logger=run_logger, checkpoints=checkpoints
-        )
-    if path == "/mfa" or MFA_HINTS.search(title_text):
-        return await recover_mfa_gate(
             page, action=action, run_logger=run_logger, checkpoints=checkpoints
         )
     if path in {"/404", "/not-found"} or NOT_FOUND_HINTS.search(title_text):

@@ -1,0 +1,10 @@
+{
+  "artifact_id": "lookup_balance",
+  "latest": 3,
+  "most_frequent": 3,
+  "usage_counts": {
+    "1": 1,
+    "2": 1,
+    "3": 1
+  }
+}

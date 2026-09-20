@@ -67,8 +67,8 @@ export function Login() {
             className="w-full rounded-md border border-slate-300 px-3 py-2.5"
           />
           <p className="mt-1.5 text-xs text-slate-500">
-            Demo members: alex123 (normal), casey404 (404), morgan789 (MFA), taylor321
-            (reloading), blake000 (hard failure).
+            Demo members: alex123 (normal), casey404 (404), taylor321 (reloading),
+            blake000 (hard failure).
           </p>
         </div>
 

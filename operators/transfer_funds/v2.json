@@ -1,0 +1,231 @@
+{
+  "artifact_id": "transfer_funds",
+  "version": 2,
+  "title": "Transfer funds",
+  "description": "Sign in, move a typed currency amount between Checking and Savings, confirm the transfer, then extract the matching debit and credit rows.",
+  "locator_policy": "dom_only",
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900
+  },
+  "viewports_validated": [
+    "desktop"
+  ],
+  "error_handling": {
+    "page_not_found": {
+      "description": "Target route returned 404 / page not found.",
+      "policy": "one_retry",
+      "delays_sec": [
+        1
+      ],
+      "max_attempts": 1,
+      "recorded_occurrences": 1,
+      "last_message": "Handled page_not_found for member casey404",
+      "last_status": "recovered"
+    }
+  },
+  "inputs": {
+    "member_id": {
+      "type": "string",
+      "required": true,
+      "description": "Opaque member login id: letters followed by exactly three digits. Do not store real personal names in artifacts; supply this at invoke time.",
+      "pattern": "^[A-Za-z]+\\d{3}$",
+      "example": "alex123"
+    },
+    "from_account": {
+      "type": "string",
+      "required": true,
+      "description": "Source product.",
+      "enum": [
+        "Checking",
+        "Savings"
+      ],
+      "example": "Savings"
+    },
+    "to_account": {
+      "type": "string",
+      "required": true,
+      "description": "Destination product.",
+      "enum": [
+        "Checking",
+        "Savings"
+      ],
+      "example": "Checking"
+    },
+    "amount": {
+      "type": "currency",
+      "required": true,
+      "description": "Transfer amount. Values over 5000 require human approval.",
+      "example": "20.00"
+    },
+    "memo": {
+      "type": "string",
+      "required": false,
+      "description": "Optional transfer memo."
+    },
+    "bank_url": {
+      "type": "string",
+      "required": false,
+      "description": "Atlas Bank login URL for this environment.",
+      "example": "http://localhost:5173/login"
+    }
+  },
+  "outputs": {
+    "transactions": {
+      "type": "list",
+      "description": "Matching debit and credit ledger rows for the transfer.",
+      "shape": "[{date, description, account, amount, type, status}]"
+    }
+  },
+  "steps": [
+    {
+      "id": "step_1",
+      "type": "click",
+      "description": "Open transfer form \u2014 click Transfer Money",
+      "risk": "medium",
+      "target": {
+        "strategy": "role",
+        "role": "button",
+        "name": "Transfer Money",
+        "robustness": "Locate by ARIA role + accessible name so the control remains findable if layout shifts but semantics stay the same.",
+        "interaction": "dom"
+      }
+    },
+    {
+      "id": "step_2",
+      "type": "fill",
+      "description": "Select from account \u2014 fill From Account",
+      "risk": "low",
+      "target": {
+        "strategy": "label",
+        "value": "From Account",
+        "robustness": "Locate the control by accessible label text shown beside the field.",
+        "interaction": "dom"
+      },
+      "value": "{{from_account}}"
+    },
+    {
+      "id": "step_3",
+      "type": "fill",
+      "description": "Select to account \u2014 fill To Account",
+      "risk": "low",
+      "target": {
+        "strategy": "label",
+        "value": "To Account",
+        "robustness": "Locate the control by accessible label text shown beside the field.",
+        "interaction": "dom"
+      },
+      "value": "{{to_account}}"
+    },
+    {
+      "id": "step_4",
+      "type": "fill",
+      "description": "Enter amount \u2014 fill Amount",
+      "risk": "medium",
+      "target": {
+        "strategy": "label",
+        "value": "Amount",
+        "robustness": "Locate the control by accessible label text shown beside the field.",
+        "interaction": "dom"
+      },
+      "value": "{{amount}}"
+    },
+    {
+      "id": "step_5",
+      "type": "click",
+      "description": "Review transfer \u2014 click Review Transfer",
+      "risk": "medium",
+      "target": {
+        "strategy": "role",
+        "role": "button",
+        "name": "Review Transfer",
+        "robustness": "Locate by ARIA role + accessible name so the control remains findable if layout shifts but semantics stay the same.",
+        "interaction": "dom"
+      }
+    },
+    {
+      "id": "step_6",
+      "type": "click",
+      "description": "Confirm transfer \u2014 click Confirm Transfer",
+      "risk": "high",
+      "target": {
+        "strategy": "role",
+        "role": "button",
+        "name": "Confirm Transfer",
+        "robustness": "Locate by ARIA role + accessible name so the control remains findable if layout shifts but semantics stay the same.",
+        "interaction": "dom"
+      }
+    },
+    {
+      "id": "step_7",
+      "type": "click",
+      "description": "Open transactions \u2014 click Transactions",
+      "risk": "low",
+      "target": {
+        "strategy": "role",
+        "role": "button",
+        "name": "Transactions",
+        "robustness": "Locate by ARIA role + accessible name so the control remains findable if layout shifts but semantics stay the same.",
+        "interaction": "dom"
+      }
+    },
+    {
+      "id": "step_8",
+      "type": "read",
+      "description": "Read transaction table \u2014 read transaction-table",
+      "risk": "low",
+      "target": {
+        "strategy": "testid",
+        "value": "transaction-table",
+        "robustness": "Prefer data-testid attributes; they are stable across copy changes and less brittle than visible text.",
+        "interaction": "dom"
+      }
+    }
+  ],
+  "success_conditions": [
+    {
+      "id": "member_details_visible",
+      "description": "Signed-in member chrome is visible on the page.",
+      "required": true
+    },
+    {
+      "id": "transfer_form_visible",
+      "description": "Transfer form controls are visible.",
+      "required": true
+    },
+    {
+      "id": "transfer_review_visible",
+      "description": "Transfer review panel is visible before confirm.",
+      "required": true
+    },
+    {
+      "id": "transfer_success_visible",
+      "description": "Transfer success confirmation is visible.",
+      "required": true
+    },
+    {
+      "id": "transactions_visible",
+      "description": "Transactions table is visible.",
+      "required": true
+    },
+    {
+      "id": "savings_balance_visible",
+      "description": "Savings account balance card/text is present.",
+      "required": true
+    },
+    {
+      "id": "checking_balance_visible",
+      "description": "Checking account balance card/text is present.",
+      "required": true
+    },
+    {
+      "id": "transfer_id_visible",
+      "description": "A transfer id or matching ledger rows are available.",
+      "required": true
+    }
+  ],
+  "query_signatures": [
+    "transfer 100 from checking to savings"
+  ]
+}

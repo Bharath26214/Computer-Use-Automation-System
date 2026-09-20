@@ -146,8 +146,8 @@ async def ensure_signed_in(
     wanted = (os.getenv("BANK_USERNAME", "alex123") or "alex123").strip()
     from app.artifact.recorder import expected_error_kind_for_member
 
-    # Scenario members must always re-login so 404/MFA/reload gates fire and
-    # get recorded on the discovery artifact (persistent browser profile).
+    # Scenario members must always re-login so 404/reload/hard-failure gates fire
+    # and get recorded on the discovery artifact (persistent browser profile).
     scenario_kind = expected_error_kind_for_member(wanted)
     current = await _session_username(page)
     url = page.url or ""
@@ -178,7 +178,6 @@ async def ensure_signed_in(
             "/transactions",
             "/register",
             "/not-found",
-            "/mfa",
             "/reloading",
             "/unavailable",
         ):
@@ -214,7 +213,7 @@ async def ensure_signed_in(
     if alert and any(token in alert.lower() for token in ("invalid", "not found", "unknown")):
         raise RuntimeError("Username not found")
 
-    # Scenario users land on 404 / MFA / reloading / hard-failure gates.
+    # Scenario users land on 404 / reloading / hard-failure gates.
     from app.errors.recover import resolve_login_scenario_gates
     from app.errors.types import RecoveryStatus
 

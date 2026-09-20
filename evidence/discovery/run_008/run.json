@@ -1,0 +1,57 @@
+{
+  "run_id": "run_008",
+  "type": "discovery",
+  "goal": "Open a savings account named Travel Fund for personal use",
+  "target_url": "http://localhost:5173/login",
+  "started_at": "2026-09-20T22:51:22Z",
+  "ended_at": "2026-09-20T22:51:29Z",
+  "status": "pass",
+  "outcome": "Account already exists",
+  "llm_used": true,
+  "llm_model": "openai/gpt-oss-20b",
+  "model_turns": 2,
+  "retries": 0,
+  "artifact_sequence": [],
+  "operators_created": [],
+  "operators_used": [],
+  "artifact_created": null,
+  "artifact_used": null,
+  "guardrail_audit": [
+    {
+      "step": 1,
+      "action": "fill",
+      "target": "Account name",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    },
+    {
+      "step": 2,
+      "action": "finish",
+      "target": null,
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "terminal_action",
+      "message": "Terminal action allowed"
+    }
+  ],
+  "error_events": [],
+  "checkpoints": null,
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900,
+    "locator_policy": "dom_only"
+  },
+  "task_results": [
+    {
+      "status": "pass",
+      "outcome": "Account already exists",
+      "artifact": "open_account"
+    }
+  ],
+  "final_response": "You already have Checking and Savings accounts. Additional accounts are not allowed."
+}

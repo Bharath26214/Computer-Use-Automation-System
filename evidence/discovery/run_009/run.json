@@ -1,0 +1,106 @@
+{
+  "run_id": "run_009",
+  "type": "discovery",
+  "goal": "What is my checking account balance?",
+  "target_url": "http://localhost:5173/login",
+  "started_at": "2026-09-20T22:51:30Z",
+  "ended_at": "2026-09-20T22:51:42Z",
+  "status": "pass",
+  "outcome": "Balance retrieved",
+  "llm_used": true,
+  "llm_model": "openai/gpt-oss-20b",
+  "model_turns": 2,
+  "retries": 0,
+  "artifact_sequence": [
+    {
+      "order": 1,
+      "artifact": "lookup_balance/v3",
+      "mode": "discovery",
+      "created": true
+    }
+  ],
+  "operators_created": [
+    "lookup_balance/v3"
+  ],
+  "operators_used": [],
+  "artifact_created": "lookup_balance/v3",
+  "artifact_used": null,
+  "guardrail_audit": [
+    {
+      "step": 1,
+      "action": "read",
+      "target": "checking-account",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    },
+    {
+      "step": 2,
+      "action": "finish",
+      "target": null,
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "terminal_action",
+      "message": "Terminal action allowed"
+    }
+  ],
+  "error_events": [
+    {
+      "kind": "reloading",
+      "message": "Reloading detected \u2014 waiting 2s before retry 1/2",
+      "status": "retrying",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": null,
+      "attempt": 1,
+      "delay_sec": 2.0,
+      "details": {}
+    },
+    {
+      "kind": "reloading",
+      "message": "Reloading detected \u2014 waiting 5s before retry 2/2",
+      "status": "retrying",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": null,
+      "attempt": 2,
+      "delay_sec": 5.0,
+      "details": {}
+    },
+    {
+      "kind": "reloading",
+      "message": "Recovered after reload wait (5s)",
+      "status": "recovered",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": "/dashboard",
+      "attempt": 2,
+      "delay_sec": 5.0,
+      "details": {}
+    }
+  ],
+  "checkpoints": null,
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900,
+    "locator_policy": "dom_only"
+  },
+  "screenshots": [
+    "screenshots/error_reloading.png"
+  ],
+  "task_results": [
+    {
+      "status": "pass",
+      "outcome": "Balance retrieved",
+      "artifact": "lookup_balance"
+    }
+  ],
+  "final_response": "Your checking account balance is $16,950.75."
+}

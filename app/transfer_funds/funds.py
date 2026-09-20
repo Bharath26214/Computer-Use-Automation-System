@@ -4,7 +4,13 @@ import re
 
 from app.agent.act import act as run_act
 from app.agent.safety import safety_check
-from app.artifact.recorder import current_member_id, find_artifact_by_id
+from app.artifact.recorder import (
+    current_member_id,
+    find_artifact_by_id,
+    force_discovery_for,
+    force_replay,
+    allow_discovery_fallback,
+)
 from app.artifact.replay import run_replay_with_fallbacks
 from app.browser.accounts import (
     ensure_dashboard,
@@ -98,11 +104,33 @@ async def scrape_transactions(browser_manager: BrowserManager) -> list[dict]:
     return list(rows or [])
 
 
-def render_transfer_markdown(rows: list[dict]) -> str:
-    lines = [
-        "| Date | Description | Account | Amount | Type | Status |",
-        "| --- | --- | --- | ---: | --- | --- |",
+def _status_label(status: str | None) -> str:
+    value = (status or "").strip().lower()
+    if value in {"pass", "success"}:
+        return "success"
+    if value in {"failed", "fail", "failure", "blocked", "cancelled"}:
+        return "failure"
+    return "success" if not value else value
+
+
+def render_transfer_markdown(
+    rows: list[dict],
+    *,
+    status: str | None = "success",
+    outcome: str | None = None,
+) -> str:
+    lines: list[str] = [
+        f"**Status:** {_status_label(status)}",
     ]
+    if outcome:
+        lines.append(f"**Outcome:** {outcome}")
+    lines.extend(
+        [
+            "",
+            "| Date | Description | Account | Amount | Type | Status |",
+            "| --- | --- | --- | ---: | --- | --- |",
+        ]
+    )
     for row in rows:
         description = str(row.get("description") or "").replace("|", "\\|")
         amount = row.get("amount")
@@ -263,7 +291,11 @@ async def run_transfer_funds(
     logger = run_logger
     if own_run or logger is None:
         # Tentative kind; may still discovery-fallback later.
-        kind = "replay" if find_artifact_by_id(TRANSFER_FUNDS) else "discovery"
+        kind = (
+            "discovery"
+            if force_discovery_for(TRANSFER_FUNDS) or not find_artifact_by_id(TRANSFER_FUNDS)
+            else "replay"
+        )
         logger = RunLogger(kind, task.goal)
         own_finish = True
     else:
@@ -331,7 +363,7 @@ async def run_transfer_funds(
             )
 
     # Reuse the logger created for preflight audit.
-    if artifact is not None:
+    if artifact is not None and not force_discovery_for(TRANSFER_FUNDS):
         artifact_ref = f"{artifact.get('artifact_id')}/v{artifact.get('version')}"
         logger.note_operator(artifact_ref, created=False)
         logger.event(type="operator", operator=artifact_ref, mode="replay")
@@ -359,7 +391,17 @@ async def run_transfer_funds(
         if "insufficient funds" in error.lower():
             _finish(logger, error)
             return error
+        if not allow_discovery_fallback():
+            print(f"[replay] failed: {error}; discovery fallback disabled")
+            _finish(logger, error, error=error)
+            return error
         print(f"[replay] failed: {error}; falling back to LLM discovery")
+
+    if force_replay():
+        msg = f"No replayable {TRANSFER_FUNDS} operator for {member_id}."
+        print(f"[replay] {msg}")
+        _finish(logger, msg, error=msg)
+        return msg
 
     from app.agent.discover import run_discovery
 

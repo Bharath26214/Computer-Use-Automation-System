@@ -79,8 +79,9 @@ Account name: {current.params.get("account_name") or account}
 Use: {current.params.get("account_use") or "Personal"}
 Do not ask for or fill an Account ID; the bank generates it.
 On the dashboard fill Account name and Use, then click Open {account} Account.
-If both Checking and Savings accounts are already on the dashboard, finish: You already have Checking and Savings accounts. Additional accounts are not allowed.
-If {account} Account is already on the dashboard and Open {account} Account is not, finish: {account} account already exists.
+After Open {account} Account succeeds, finish: {account} account created.
+If both Checking and Savings accounts are already on the dashboard before you open one, finish: You already have Checking and Savings accounts. Additional accounts are not allowed.
+If {account} Account is already on the dashboard and Open {account} Account is not (and you did not just open it), finish: {account} account already exists.
 Do not transfer funds and do not look up a different account.
 """
     elif is_transfer_goal(goal):
@@ -170,7 +171,17 @@ def _shortcut_action(state: AgentState) -> AgentAction | None:
         and "Open Checking Account" not in text
         and "Open Savings Account" not in text
     )
-    if "already exists" in last.lower() or "account opened" in last.lower() or "additional accounts" in last.lower():
+    log = " ".join(str(item) for item in (state.get("action_log") or [])).lower()
+    opened_this_run = "clicked" in log and f"open {account.lower()}" in log
+    if "account created" in last.lower() or "account opened" in last.lower():
+        return AgentAction(
+            action="finish",
+            value=f"{account} account created.",
+            reason="open account complete",
+        )
+    if "additional accounts" in last.lower():
+        return AgentAction(action="finish", value=last, reason="open account complete")
+    if "already exists" in last.lower() and not opened_this_run:
         return AgentAction(action="finish", value=last, reason="open account complete")
     if clicked_open:
         if open_button:
@@ -181,17 +192,16 @@ def _shortcut_action(state: AgentState) -> AgentAction | None:
             )
         return AgentAction(
             action="finish",
-            value=f"{account} account opened.",
+            value=f"{account} account created.",
             reason="open account complete",
         )
-    if both_exist:
+    if both_exist and not opened_this_run:
         return AgentAction(
             action="finish",
             value="You already have Checking and Savings accounts. Additional accounts are not allowed.",
             reason="both accounts already exist",
         )
     if open_button:
-        log = " ".join(state.get("action_log") or []).lower()
         params = tasks[0].params
         if "account name" not in log:
             return AgentAction(
@@ -213,6 +223,12 @@ def _shortcut_action(state: AgentState) -> AgentAction | None:
             reason="open the requested account",
         )
     if f"{account} Account" in text:
+        if opened_this_run:
+            return AgentAction(
+                action="finish",
+                value=f"{account} account created.",
+                reason="open account complete",
+            )
         return AgentAction(
             action="finish",
             value=f"{account} account already exists.",

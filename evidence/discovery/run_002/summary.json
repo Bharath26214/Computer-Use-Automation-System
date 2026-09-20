@@ -1,0 +1,9 @@
+{
+  "run_id": "run_002",
+  "model": "openai/gpt-oss-20b",
+  "model_turns": 9,
+  "retries": 0,
+  "started_at": "2026-09-20T22:47:08Z",
+  "ended_at": "2026-09-20T22:48:04Z",
+  "final_response": "**Status:** success\n\n| Date | Description | Account | Amount | Type | Status |\n| --- | --- | --- | ---: | --- | --- |\n| 2026-09-20 | Transfer to Savings | Checking | -$100.00 | Debit | Completed |\n| 2026-09-20 | Transfer from Checking | Savings | +$100.00 | Credit | Completed |\n"
+}

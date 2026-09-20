@@ -1,0 +1,66 @@
+{
+  "run_id": "run_005",
+  "type": "discovery",
+  "goal": "What is my checking account balance?",
+  "target_url": "http://localhost:5173/login",
+  "started_at": "2026-09-20T22:49:40Z",
+  "ended_at": "2026-09-20T22:49:45Z",
+  "status": "pass",
+  "outcome": "Balance retrieved",
+  "llm_used": true,
+  "llm_model": "openai/gpt-oss-20b",
+  "model_turns": 2,
+  "retries": 0,
+  "artifact_sequence": [
+    {
+      "order": 1,
+      "artifact": "lookup_balance/v2",
+      "mode": "discovery",
+      "created": true
+    }
+  ],
+  "operators_created": [
+    "lookup_balance/v2"
+  ],
+  "operators_used": [],
+  "artifact_created": "lookup_balance/v2",
+  "artifact_used": null,
+  "guardrail_audit": [
+    {
+      "step": 1,
+      "action": "read",
+      "target": "checking-account",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    },
+    {
+      "step": 2,
+      "action": "finish",
+      "target": null,
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "terminal_action",
+      "message": "Terminal action allowed"
+    }
+  ],
+  "error_events": [],
+  "checkpoints": null,
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900,
+    "locator_policy": "dom_only"
+  },
+  "task_results": [
+    {
+      "status": "pass",
+      "outcome": "Balance retrieved",
+      "artifact": "lookup_balance"
+    }
+  ],
+  "final_response": "Your checking account balance is $16,950.75."
+}

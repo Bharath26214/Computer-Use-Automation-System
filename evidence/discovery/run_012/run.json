@@ -1,0 +1,76 @@
+{
+  "run_id": "run_012",
+  "type": "discovery",
+  "goal": "Open a savings account named Travel Fund for personal use",
+  "target_url": "http://localhost:5173/login",
+  "started_at": "2026-09-20T22:53:38Z",
+  "ended_at": "2026-09-20T22:53:49Z",
+  "status": "pass",
+  "outcome": "Account already exists",
+  "llm_used": false,
+  "llm_model": null,
+  "model_turns": 0,
+  "retries": 0,
+  "artifact_sequence": [],
+  "operators_created": [],
+  "operators_used": [],
+  "artifact_created": null,
+  "artifact_used": null,
+  "guardrail_audit": [],
+  "error_events": [
+    {
+      "kind": "reloading",
+      "message": "Reloading detected \u2014 waiting 2s before retry 1/2",
+      "status": "retrying",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": null,
+      "attempt": 1,
+      "delay_sec": 2.0,
+      "details": {}
+    },
+    {
+      "kind": "reloading",
+      "message": "Reloading detected \u2014 waiting 5s before retry 2/2",
+      "status": "retrying",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": null,
+      "attempt": 2,
+      "delay_sec": 5.0,
+      "details": {}
+    },
+    {
+      "kind": "reloading",
+      "message": "Recovered after reload wait (5s)",
+      "status": "recovered",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": "/dashboard",
+      "attempt": 2,
+      "delay_sec": 5.0,
+      "details": {}
+    }
+  ],
+  "checkpoints": null,
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900,
+    "locator_policy": "dom_only"
+  },
+  "screenshots": [
+    "screenshots/error_reloading.png"
+  ],
+  "task_results": [
+    {
+      "status": "pass",
+      "outcome": "Account already exists",
+      "artifact": "open_account"
+    }
+  ],
+  "final_response": "You already have a Savings account."
+}

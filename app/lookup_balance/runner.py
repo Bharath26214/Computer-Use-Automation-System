@@ -6,6 +6,9 @@ from app.artifact.recorder import (
     current_member_id,
     expected_error_kind_for_member,
     find_artifact_by_id,
+    force_discovery_for,
+    force_replay,
+    allow_discovery_fallback,
 )
 from app.artifact.replay import run_replay_with_fallbacks
 from app.browser.accounts import (
@@ -70,7 +73,10 @@ async def run_lookup_balance(
             f"({member_id}) — new capability, skipping replay"
         )
 
-    use_replay = bool(artifact is not None and artifact.get("steps"))
+    use_replay = (
+        not force_discovery_for(LOOKUP_BALANCE)
+        and bool(artifact is not None and artifact.get("steps"))
+    )
     if use_replay:
         artifact_ref = f"{artifact.get('artifact_id')}/v{artifact.get('version')}"
         if own_run or logger is None:
@@ -121,12 +127,24 @@ async def run_lookup_balance(
             if path:
                 print(f"Operator: {path}")
             return answer
-        print(f"[replay] failed: {result.get('error')}; falling back to LLM discovery")
+        error = str(result.get("error") or result.get("status") or "UI changed")
+        if not allow_discovery_fallback():
+            print(f"[replay] failed: {error}; discovery fallback disabled")
+            if own_run:
+                logger.finish(error=error, answer=error, task_kind="get_balance")
+            return error
+        print(f"[replay] failed: {error}; falling back to LLM discovery")
         if own_run:
-            # Fresh discovery run so login error events land on the discovery artifact.
             logger = RunLogger("discovery", task.goal)
             await ensure_signed_in(browser_manager, skip_auth=False, run_logger=logger)
             await ensure_dashboard(browser_manager)
+
+    if force_replay():
+        msg = f"No replayable {LOOKUP_BALANCE} operator for {member_id}."
+        print(f"[replay] {msg}")
+        if own_run and logger is not None:
+            logger.finish(error=msg, answer=msg, task_kind="get_balance")
+        return msg
 
     try:
         answer = await run_discovery(

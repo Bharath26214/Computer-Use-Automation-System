@@ -1,0 +1,91 @@
+{
+  "artifact_id": "delete_account",
+  "version": 3,
+  "title": "Delete account",
+  "description": "Sign in and delete a Checking or Savings product from the dashboard. Nonzero balances must be transferred first by the calling workflow.",
+  "locator_policy": "dom_only",
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900
+  },
+  "viewports_validated": [
+    "desktop"
+  ],
+  "error_handling": {
+    "reloading": {
+      "description": "Page or app is reloading / still loading.",
+      "policy": "retry_after_2s_then_5s",
+      "delays_sec": [
+        2,
+        5
+      ],
+      "max_attempts": 2,
+      "recorded_occurrences": 6,
+      "last_message": "Recovered after reload wait (5s)",
+      "last_status": "recovered"
+    }
+  },
+  "inputs": {
+    "member_id": {
+      "type": "string",
+      "required": true,
+      "description": "Opaque member login id: letters followed by exactly three digits. Do not store real personal names in artifacts; supply this at invoke time.",
+      "pattern": "^[A-Za-z]+\\d{3}$",
+      "example": "alex123"
+    },
+    "account": {
+      "type": "string",
+      "required": true,
+      "description": "Product to delete.",
+      "enum": [
+        "Checking",
+        "Savings"
+      ],
+      "example": "Savings"
+    },
+    "bank_url": {
+      "type": "string",
+      "required": false,
+      "description": "Atlas Bank login URL for this environment.",
+      "example": "http://localhost:5173/login"
+    }
+  },
+  "outputs": {
+    "account_status": {
+      "type": "string",
+      "description": "Delete result message.",
+      "example": "Savings account deleted."
+    }
+  },
+  "steps": [
+    {
+      "id": "step_1",
+      "type": "click",
+      "description": "Return to dashboard \u2014 click Dashboard",
+      "risk": "low",
+      "target": {
+        "strategy": "role",
+        "role": "button",
+        "name": "Dashboard",
+        "robustness": "Locate by ARIA role + accessible name so the control remains findable if layout shifts but semantics stay the same.",
+        "interaction": "dom"
+      }
+    }
+  ],
+  "success_conditions": [
+    {
+      "id": "member_details_visible",
+      "description": "Signed-in member chrome is visible on the page.",
+      "required": true
+    },
+    {
+      "id": "checking_balance_visible",
+      "description": "Checking account balance card/text is present.",
+      "required": true
+    }
+  ],
+  "query_signatures": [
+    "delete the savings account"
+  ]
+}

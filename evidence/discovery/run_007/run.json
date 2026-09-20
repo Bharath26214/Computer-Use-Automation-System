@@ -1,0 +1,195 @@
+{
+  "run_id": "run_007",
+  "type": "discovery",
+  "goal": "Delete my savings account",
+  "target_url": "http://localhost:5173/login",
+  "started_at": "2026-09-20T22:50:35Z",
+  "ended_at": "2026-09-20T22:51:01Z",
+  "status": "pass",
+  "outcome": "Account deleted",
+  "llm_used": true,
+  "llm_model": "openai/gpt-oss-20b",
+  "model_turns": 4,
+  "retries": 0,
+  "artifact_sequence": [
+    {
+      "order": 1,
+      "artifact": "lookup_balance/v2",
+      "mode": "discovery",
+      "created": false
+    },
+    {
+      "order": 2,
+      "artifact": "transfer_funds/v2",
+      "mode": "discovery",
+      "created": false
+    },
+    {
+      "order": 3,
+      "artifact": "delete_account/v2",
+      "mode": "discovery",
+      "created": true
+    }
+  ],
+  "operators_created": [
+    "delete_account/v2"
+  ],
+  "operators_used": [
+    "lookup_balance/v2",
+    "transfer_funds/v2"
+  ],
+  "artifact_created": "delete_account/v2",
+  "artifact_used": "lookup_balance/v2",
+  "guardrail_audit": [
+    {
+      "step": 1,
+      "action": "read",
+      "target": "savings-account",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    },
+    {
+      "step": 2,
+      "action": "click",
+      "target": "Transfer Money",
+      "status": "allowed",
+      "risk": "medium",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    },
+    {
+      "step": 3,
+      "action": "fill",
+      "target": "From Account",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 4,
+      "action": "fill",
+      "target": "To Account",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 5,
+      "action": "fill",
+      "target": "Amount",
+      "status": "allowed",
+      "risk": "medium",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 6,
+      "action": "click",
+      "target": "Review Transfer",
+      "status": "allowed",
+      "risk": "medium",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 7,
+      "action": "click",
+      "target": "Confirm Transfer",
+      "status": "allowed",
+      "risk": "high",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 8,
+      "action": "click",
+      "target": "Transactions",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 9,
+      "action": "read",
+      "target": "transaction-table",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transactions)"
+    },
+    {
+      "step": 10,
+      "action": "click",
+      "target": "Dashboard",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transactions)"
+    },
+    {
+      "step": 11,
+      "action": "click",
+      "target": "Delete Savings Account",
+      "status": "allowed",
+      "risk": "high",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    },
+    {
+      "step": 12,
+      "action": "read",
+      "target": "open-account-message",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    },
+    {
+      "step": 13,
+      "action": "finish",
+      "target": null,
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "terminal_action",
+      "message": "Terminal action allowed"
+    }
+  ],
+  "error_events": [],
+  "checkpoints": null,
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900,
+    "locator_policy": "dom_only"
+  },
+  "screenshots": [
+    "screenshots/success_transfer_done.png"
+  ],
+  "transfer": "transfer.md",
+  "task_results": [
+    {
+      "status": "pass",
+      "outcome": "Account deleted",
+      "artifact": "delete_account"
+    }
+  ],
+  "final_response": "Your savings account balance is $200.00.\n**Status:** success\n\n| Date | Description | Account | Amount | Type | Status |\n| --- | --- | --- | ---: | --- | --- |\n| 2026-09-20 | Transfer to Checking | Savings | -$200.00 | Debit | Completed |\n| 2026-09-20 | Transfer from Savings | Checking | +$200.00 | Credit | Completed |\n\nSavings account deleted."
+}

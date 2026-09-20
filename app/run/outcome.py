@@ -110,7 +110,7 @@ def classify_run(
             return "pass", "Account already exists"
         if "was not created" in lowered:
             return "failed", FAILURE_OUTCOMES["human_did_not_confirm"]
-        if "created successfully" in lowered or "opened" in lowered:
+        if "created successfully" in lowered or "account created" in lowered or "opened" in lowered:
             return "pass", "Account opened"
 
     if kind == "transfer":

@@ -4,7 +4,13 @@ import re
 
 from app.agent.act import act as run_act
 from app.agent.safety import safety_check
-from app.artifact.recorder import current_member_id, find_artifact_by_id
+from app.artifact.recorder import (
+    current_member_id,
+    find_artifact_by_id,
+    force_discovery_for,
+    force_replay,
+    allow_discovery_fallback,
+)
 from app.artifact.replay import run_replay_with_fallbacks
 from app.browser.manager import BrowserManager
 from app.plan import (
@@ -231,7 +237,7 @@ async def _finish_delete(
     delete_goal = goal or f"Delete the {account} account"
     member_id = current_member_id()
     artifact = find_artifact_by_id(DELETE_ACCOUNT, member_id)
-    if artifact is not None:
+    if artifact is not None and not force_discovery_for(DELETE_ACCOUNT):
         artifact_ref = f"{artifact.get('artifact_id')}/v{artifact.get('version')}"
         run_logger.note_operator(artifact_ref, created=False)
         run_logger.event(type="operator", operator=artifact_ref, mode="replay")
@@ -245,7 +251,16 @@ async def _finish_delete(
         )
         if result.get("status") == "replayed":
             return result.get("answer") or f"{account} account deleted."
-        print(f"[replay] failed: {result.get('error')}; falling back to LLM discovery")
+        error = str(result.get("error") or result.get("status") or "UI changed")
+        if not allow_discovery_fallback():
+            print(f"[replay] failed: {error}; discovery fallback disabled")
+            return error
+        print(f"[replay] failed: {error}; falling back to LLM discovery")
+
+    if force_replay():
+        msg = f"No replayable {DELETE_ACCOUNT} operator for {member_id}."
+        print(f"[replay] {msg}")
+        return msg
 
     run_logger.event(type="operator", operator=DELETE_ACCOUNT, mode="discovery")
     return await run_discovery(
@@ -298,7 +313,7 @@ async def run_delete_account(
             _lookup_task(account),
             browser_manager,
             skip_auth,
-            fallback_discovery=True,
+            fallback_discovery=allow_discovery_fallback(),
             run_logger=run_logger,
             own_run=False,
         )
@@ -334,10 +349,9 @@ async def run_delete_account(
                 )
                 _finish(message)
                 return message
-            # One human confirmation covers transfer (including amounts > $5000) and delete.
             print(
-                f"Transfer all {format_currency(balance)} from {account} to {other}, "
-                f"then permanently delete the {account} account? (yes/no)"
+                f"Transfer all {format_currency(balance)} from {account} to {other} "
+                f"so the {account} account can be deleted? (yes/no)"
             )
             try:
                 confirmed = ask_yes_no("> ")
@@ -353,12 +367,30 @@ async def run_delete_account(
                 )
                 _finish(message)
                 return message
+
+            print(
+                f"Delete the {account} account after the transfer? "
+                f"This process is irreversible. (yes/no)"
+            )
+            try:
+                confirmed = ask_yes_no("> ")
+            except ConfirmationTimeout as exc:
+                message = str(exc)
+                answers.append(message)
+                _finish(message, error=message)
+                return message
+            if not confirmed:
+                message = f"{account} account was not deleted."
+                _finish(message)
+                return message
+
             amount = format_amount(balance)
             print(f"[delete_account] transferring {amount} from {account} to {other}")
             transfer_answer = await run_task(
                 _transfer_all_task(account, other, amount),
                 browser_manager,
                 skip_auth=True,
+                fallback_discovery=allow_discovery_fallback(),
                 run_logger=run_logger,
                 own_run=False,
             )

@@ -1,0 +1,10 @@
+{
+  "artifact_id": "delete_account",
+  "latest": 3,
+  "most_frequent": 3,
+  "usage_counts": {
+    "1": 0,
+    "2": 0,
+    "3": 0
+  }
+}

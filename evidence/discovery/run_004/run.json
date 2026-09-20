@@ -1,0 +1,79 @@
+{
+  "run_id": "run_004",
+  "type": "discovery",
+  "goal": "Open a savings account named Travel Fund for personal use",
+  "target_url": "http://localhost:5173/login",
+  "started_at": "2026-09-20T22:48:53Z",
+  "ended_at": "2026-09-20T22:49:17Z",
+  "status": "pass",
+  "outcome": "Account opened",
+  "llm_used": true,
+  "llm_model": "openai/gpt-oss-20b",
+  "model_turns": 3,
+  "retries": 0,
+  "artifact_sequence": [
+    {
+      "order": 1,
+      "artifact": "open_account/v1",
+      "mode": "discovery",
+      "created": true
+    }
+  ],
+  "operators_created": [
+    "open_account/v1"
+  ],
+  "operators_used": [],
+  "artifact_created": "open_account/v1",
+  "artifact_used": null,
+  "guardrail_audit": [
+    {
+      "step": 1,
+      "action": "fill",
+      "target": "Account name",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    },
+    {
+      "step": 2,
+      "action": "click",
+      "target": "Open Savings Account",
+      "status": "allowed",
+      "risk": "high",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    },
+    {
+      "step": 3,
+      "action": "finish",
+      "target": null,
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "terminal_action",
+      "message": "Terminal action allowed"
+    }
+  ],
+  "error_events": [],
+  "checkpoints": null,
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900,
+    "locator_policy": "dom_only"
+  },
+  "screenshots": [
+    "screenshots/success_account_opened.png"
+  ],
+  "task_results": [
+    {
+      "status": "pass",
+      "outcome": "Account opened",
+      "artifact": "open_account"
+    }
+  ],
+  "final_response": "Savings account created successfully (Travel Fund for, Personal)."
+}

@@ -5,7 +5,6 @@ import { initialTransactions, type Transaction } from './transactions'
 export type LoginScenario =
   | 'normal'
   | 'page_not_found'
-  | 'mfa'
   | 'reloading'
   | 'hard_failure'
 
@@ -21,7 +20,7 @@ export type Member = {
 }
 
 function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T
+  return JSON.parse(JSON.stringify(value))
 }
 
 export const SEED_PASSWORD = ''
@@ -30,12 +29,11 @@ const sharedAccounts = (): Account[] => clone(initialAccounts)
 const sharedTx = (): Transaction[] => clone(initialTransactions)
 
 /**
- * Five scenario users for error-handling demos:
+ * Scenario users for error-handling demos:
  * 1. alex123     — normal login
  * 2. casey404    — page not found, then details after reload
- * 3. morgan789   — MFA / human operator approval
- * 4. taylor321   — reloading after username
- * 5. blake000    — hard failure after retries (no other errors)
+ * 3. taylor321   — reloading after username
+ * 4. blake000    — hard failure after retries (no other errors)
  */
 export const seedMembers: Member[] = [
   {
@@ -53,15 +51,6 @@ export const seedMembers: Member[] = [
     username: 'casey404',
     password: SEED_PASSWORD,
     loginScenario: 'page_not_found',
-    accounts: sharedAccounts(),
-    transactions: sharedTx(),
-  },
-  {
-    id: 'member-morgan',
-    fullName: 'Morgan Lee',
-    username: 'morgan789',
-    password: SEED_PASSWORD,
-    loginScenario: 'mfa',
     accounts: sharedAccounts(),
     transactions: sharedTx(),
   },
@@ -89,8 +78,6 @@ export function postLoginPath(scenario: LoginScenario | undefined): string {
   switch (scenario) {
     case 'page_not_found':
       return '/not-found'
-    case 'mfa':
-      return '/mfa'
     case 'reloading':
       return '/reloading'
     case 'hard_failure':

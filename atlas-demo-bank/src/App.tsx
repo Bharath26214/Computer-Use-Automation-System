@@ -2,7 +2,6 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
 import { Dashboard } from './pages/Dashboard'
 import { Login } from './pages/Login'
-import { MfaPage } from './pages/MfaPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { Register } from './pages/Register'
 import { ReloadingPage } from './pages/ReloadingPage'
@@ -19,7 +18,6 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/not-found" element={<NotFoundPage />} />
-          <Route path="/mfa" element={<MfaPage />} />
           <Route path="/reloading" element={<ReloadingPage />} />
           <Route path="/unavailable" element={<UnavailablePage />} />
           <Route element={<AppLayout />}>
