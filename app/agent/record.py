@@ -32,7 +32,8 @@ async def record(
 
     if not skipped:
         steps.append(action_to_step(action, len(steps) + 1))
-        print(f"[record] {steps[-1]['id']} {steps[-1]['type']}")
+        last = steps[-1]
+        print(f"[record] {last['id']} {last['type']} risk={last.get('risk')} — {last.get('description')}")
 
     updates["recorded_steps"] = steps
     updates["status"] = "recording_skipped" if skipped else "recorded"
@@ -60,7 +61,17 @@ async def record(
             updates["status"] = "open_account_rejected"
             print("[operator] skipped save: open account is not valid for this member")
         else:
-            path = persist_artifact({**state, **updates, "recorded_steps": steps})
+            path = persist_artifact(
+                {
+                    **state,
+                    **updates,
+                    "recorded_steps": steps,
+                    "error_events": list(state.get("error_events") or [])
+                    + list(
+                        (run_logger.meta.get("error_events") if run_logger else None) or []
+                    ),
+                }
+            )
             if path is not None:
                 print(f"[operator] saved {path}")
                 updates["artifact_path"] = str(path)

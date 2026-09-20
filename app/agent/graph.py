@@ -10,7 +10,7 @@ from langgraph.graph import END, START, StateGraph
 
 from app.agent.act import act as run_act
 from app.agent.record import record as run_record
-from app.agent.safety import safety_check
+from app.agent.safety import async_safety_check
 from app.agent.schema import AgentAction
 from app.agent.state import AgentState
 from app.plan import is_transfer_goal, parse_transfer_goal, plan_query
@@ -23,12 +23,11 @@ Supported tasks:
 1. Open a Checking or Savings account
 2. Account balance lookup
 3. Transfer funds between Savings and Checking
-4. Create a monthly transaction statement
-5. Delete an account only through the confirmed delete_account flow
+4. Delete an account only through the confirmed delete_account flow
 
 Each turn you see the current page observation. Choose exactly one action:
 - navigate: target is a URL
-- fill: target is a visible field label such as Username, Password, From Account, To Account, or Amount; value is the text to type or the dropdown option
+- fill: target is a visible field label such as Username, From Account, To Account, or Amount; value is the text to type or the dropdown option
 - click: target is a visible button or link such as Sign In, Open Checking Account, Open Savings Account, Transfer Money, Review Transfer, Confirm Transfer, Dashboard, or Transactions
 - read: target is a test id or visible label such as savings-account, checking-account, open-account-message, transfer-id, or transactions
 - finish: value is the final answer for the user
@@ -38,14 +37,13 @@ The LLM must not generate Playwright code. Choose an action schema only.
 
 Rules:
 - Do not invent balances, transfer IDs, or amounts. Only report numbers from the page observation or a read result.
-- Sign in first if the page is a login form.
+- Sign in first if the page is a login form. Login is username-only (member ID = letters + three digits). Never ask for or fill a password.
 - If the current page is already Dashboard, Transfer, or Transactions, you are signed in. Do not navigate to login again.
 - For opening an account: after login, on the dashboard fill Account name and Use (Personal or Business), then click Open Checking Account or Open Savings Account. Atlas Bank generates the account ID. You may hold one Checking and one Savings account only; if both already exist, finish that additional accounts are not allowed. If that account card is already visible and the Open button is not, the account exists — finish with that.
 - For a balance lookup: after login, go to the dashboard if needed, read the requested account, then finish.
 - For a transfer: after login, click Transfer Money, fill From Account, To Account, and Amount, click Review Transfer, click Confirm Transfer, click Transactions, read transaction-table, then finish. Report only the debit and credit rows for that transfer (Date, Description, Account, Amount, Type, Status). Do not keep transferring.
-- For a monthly statement: after login, click Transactions, read transaction-table, then finish. Do not invent transactions.
-- Never click Delete. Account deletions are handled by a separate confirmed flow, not by this agent.
-- Prefer labels the user can see: Username, Password, Sign In, Account name, Use, Open Checking Account, Open Savings Account, Transfer Money, From Account, To Account, Amount, Review Transfer, Confirm Transfer, transfer-id, Transactions, Dashboard, savings-account, checking-account, open-account-message, transaction-table.
+- Never click Delete unless this goal is an explicit confirmed delete_account flow.
+- Prefer labels the user can see: Username, Sign In, Account name, Use, Open Checking Account, Open Savings Account, Transfer Money, From Account, To Account, Amount, Review Transfer, Confirm Transfer, transfer-id, Transactions, Dashboard, savings-account, checking-account, open-account-message, transaction-table.
 """
 
 
@@ -64,7 +62,10 @@ def _extract_json(text: str) -> str:
     return match.group(0)
 
 
-async def _choose_action(state: AgentState) -> AgentAction:
+async def _choose_action(
+    state: AgentState,
+    run_logger: RunLogger | None = None,
+) -> AgentAction:
     observation = state.get("observation") or {"url": "", "title": "", "text": ""}
     task_hint = ""
     goal = state["goal"]
@@ -100,11 +101,17 @@ This is a balance lookup for the {account} account.
 After login, read {account.lower()}-account, then finish with that balance.
 Do not open an account and do not transfer funds.
 """
+    elif current and current.kind == "delete_account":
+        account = current.params.get("account") or "Checking"
+        task_hint = f"""
+This is a confirmed delete of the {account} account.
+On the dashboard click Delete {account} Account, then read open-account-message and finish.
+Do not transfer funds and do not open accounts.
+"""
     prompt = f"""Goal: {state["goal"]}
 {task_hint}
-Bank URL: {os.getenv("BANK_URL", "http://127.0.0.1:5173/login")}
-Username: {os.getenv("BANK_USERNAME", "alex")}
-Password: {os.getenv("BANK_PASSWORD", "atlas123")}
+Bank URL: {os.getenv("BANK_URL", "http://localhost:5173/login")}
+Username: {os.getenv("BANK_USERNAME", "alex123")}
 
 Iteration: {state["iteration"]} / {state["max_iterations"]}
 Action log: {state.get("action_log") or []}
@@ -128,8 +135,11 @@ Return the next AgentAction.
         )
         if isinstance(action, AgentAction):
             return action
-    except Exception:
-        pass
+    except Exception as exc:
+        if run_logger is not None:
+            run_logger.log_llm_retry(reason=f"structured_output_failed: {type(exc).__name__}")
+        else:
+            print(f"[llm] structured output failed ({type(exc).__name__}); retrying JSON")
 
     raw = await llm.ainvoke(
         [
@@ -213,7 +223,13 @@ def _shortcut_action(state: AgentState) -> AgentAction | None:
     return None
 
 
-def build_agent(browser_manager: BrowserManager, run_logger: RunLogger | None = None):
+def build_agent(
+    browser_manager: BrowserManager,
+    run_logger: RunLogger | None = None,
+    *,
+    allow_delete: bool = False,
+    allow_open: bool = False,
+):
     async def observe(state: AgentState):
         page = await browser_manager.open()
         observation = {
@@ -228,9 +244,13 @@ def build_agent(browser_manager: BrowserManager, run_logger: RunLogger | None = 
             "observation": observation,
             "iteration": state.get("iteration", 0) + 1,
             "status": "observing",
+            "allow_delete": allow_delete or bool(state.get("allow_delete")),
+            "allow_open": allow_open or bool(state.get("allow_open")),
+            "guardrails_already_checked": False,
         }
 
     async def decide(state: AgentState):
+        used_llm = False
         if state.get("iteration", 0) >= state.get("max_iterations", 18):
             action = AgentAction(
                 action="finish",
@@ -238,14 +258,18 @@ def build_agent(browser_manager: BrowserManager, run_logger: RunLogger | None = 
                 reason="max_iterations",
             )
         else:
-            action = _shortcut_action(state) or await _choose_action(state)
+            # Discovery always asks the LLM; no hardcoded shortcuts.
+            action = await _choose_action(state, run_logger=run_logger)
+            used_llm = True
         print(f"[decide] {action.action} target={action.target} value={action.value}")
         dumped = action.model_dump()
-        if run_logger is not None:
+        if run_logger is not None and used_llm:
             run_logger.log_llm_decision(dumped)
         updates = {
             "action": dumped,
             "status": "deciding",
+            "allow_delete": allow_delete or bool(state.get("allow_delete")),
+            "allow_open": allow_open or bool(state.get("allow_open")),
         }
         if action.action == "finish":
             updates["answer"] = action.value or action.reason or ""
@@ -255,11 +279,26 @@ def build_agent(browser_manager: BrowserManager, run_logger: RunLogger | None = 
             updates["status"] = "needs_human"
         return updates
 
-    def safety(state: AgentState):
-        return safety_check(state)
+    async def safety(state: AgentState):
+        merged = {
+            **state,
+            "allow_delete": allow_delete or bool(state.get("allow_delete")),
+            "allow_open": allow_open or bool(state.get("allow_open")),
+        }
+        result = await async_safety_check(
+            merged,
+            browser_manager=browser_manager,
+            run_logger=run_logger,
+        )
+        if result.get("status") == "safety_passed":
+            result["guardrails_already_checked"] = True
+        return result
 
     async def act(state: AgentState):
-        result = await run_act(state, browser_manager)
+        result = await run_act(
+            {**state, "run_logger": run_logger},
+            browser_manager,
+        )
         if run_logger is not None:
             run_logger.log_act(state.get("action") or {})
         return result
@@ -274,6 +313,11 @@ def build_agent(browser_manager: BrowserManager, run_logger: RunLogger | None = 
         if action in {"finish", "request_human"}:
             return "record"
         return "act"
+
+    def route_after_act(state: AgentState) -> str:
+        if state.get("status") == "blocked":
+            return END
+        return "record"
 
     def route_after_record(state: AgentState) -> str:
         action = (state.get("action") or {}).get("action")
@@ -297,7 +341,11 @@ def build_agent(browser_manager: BrowserManager, run_logger: RunLogger | None = 
         route_after_safety,
         {"act": "act", "record": "record", END: END},
     )
-    graph.add_edge("act", "record")
+    graph.add_conditional_edges(
+        "act",
+        route_after_act,
+        {"record": "record", END: END},
+    )
     graph.add_conditional_edges(
         "record",
         route_after_record,

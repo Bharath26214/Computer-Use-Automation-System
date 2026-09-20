@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import date
 
 from app.plan.transfer_goal import extract_amount, is_transfer_goal, parse_transfer_goal
 
@@ -10,7 +9,6 @@ LOOKUP_BALANCE = "lookup_balance"
 TRANSFER_FUNDS = "transfer_funds"
 OPEN_ACCOUNT = "open_account"
 DELETE_ACCOUNT = "delete_account"
-CREATE_STATEMENT = "create_statement"
 
 CLAUSE_SPLIT = re.compile(
     r"\b(?:then|and then|after that|afterwards|afterward|;)\b",
@@ -18,39 +16,6 @@ CLAUSE_SPLIT = re.compile(
 )
 AND_SPLIT = re.compile(r"\s+\band\s+\b", re.IGNORECASE)
 
-CREATE_STATEMENT_RE = re.compile(
-    r"\b(?:create|generate|make|get|download|print|prepare|show)\b.{0,40}\bstatements?\b"
-    r"|\bmonthly\s+statements?\b"
-    r"|\bstatements?\s+for\b"
-    r"|\btransaction\s+statements?\b",
-    re.IGNORECASE,
-)
-MONTH_NAMES = {
-    "january": 1,
-    "jan": 1,
-    "february": 2,
-    "feb": 2,
-    "march": 3,
-    "mar": 3,
-    "april": 4,
-    "apr": 4,
-    "may": 5,
-    "june": 6,
-    "jun": 6,
-    "july": 7,
-    "jul": 7,
-    "august": 8,
-    "aug": 8,
-    "september": 9,
-    "sept": 9,
-    "sep": 9,
-    "october": 10,
-    "oct": 10,
-    "november": 11,
-    "nov": 11,
-    "december": 12,
-    "dec": 12,
-}
 DELETE_CHECKING = re.compile(
     r"(?:delete|clos(?:e|ing)|remov(?:e|ing))\b(?:(?!\b(?:savings|transfer)\b).){0,24}\bchecking\b"
     r"|\bchecking\b.{0,24}(?:account)?.{0,12}(?:delete|close|remove)",
@@ -101,7 +66,6 @@ ACCOUNT_NAME_RE = re.compile(
 )
 USE_RE = re.compile(r"\b(personal|business)\b", re.IGNORECASE)
 
-
 @dataclass
 class PlannedTask:
     kind: str
@@ -119,16 +83,7 @@ class PlannedTask:
                     self.params.get("to_account") or "",
                 ]
             )
-        if self.kind == "create_statement":
-            return "|".join(
-                [
-                    self.artifact_id,
-                    self.params.get("account") or "all",
-                    self.params.get("month") or "",
-                ]
-            )
         return f"{self.artifact_id}|{self.params.get('account') or ''}"
-
 
 def account_params(account: str) -> dict[str, str]:
     name = "Checking" if str(account).lower().startswith("check") else "Savings"
@@ -141,60 +96,23 @@ def account_params(account: str) -> dict[str, str]:
         "account_use": "Personal",
     }
 
-
-def parse_month(query: str, today: date | None = None) -> str:
-    now = today or date.today()
-    text = query or ""
-    iso = re.search(r"\b(20\d{2})-(\d{1,2})\b", text)
-    if iso:
-        return f"{iso.group(1)}-{int(iso.group(2)):02d}"
-    year_match = re.search(r"\b(20\d{2})\b", text)
-    year = int(year_match.group(1)) if year_match else now.year
-    for name, month in MONTH_NAMES.items():
-        if re.search(rf"\b{name}\b", text, re.IGNORECASE):
-            return f"{year}-{month:02d}"
-    return f"{now.year}-{now.month:02d}"
-
-
-def parse_statement_fields(query: str) -> dict[str, str]:
-    text = query or ""
-    params = {"month": parse_month(text)}
-    lowered = text.lower()
-    has_checking = bool(re.search(r"\bchecking\b", lowered))
-    has_savings = bool(re.search(r"\bsavings\b", lowered))
-    if has_checking and not has_savings:
-        params.update(account_params("Checking"))
-    elif has_savings and not has_checking:
-        params.update(account_params("Savings"))
-    return params
-
-
-def _create_statement(query: str = "", account: str = "") -> PlannedTask:
-    params = parse_statement_fields(query)
-    if account:
-        params.update(account_params(account))
-        params["month"] = parse_month(query)
-    label = params.get("account") or "all accounts"
-    month = params.get("month") or parse_month(query)
-    return PlannedTask(
-        "create_statement",
-        CREATE_STATEMENT,
-        f"Create a {month} statement for {label}",
-        params,
-    )
-
-
 def parse_open_fields(query: str, account: str) -> dict[str, str]:
+    """Parse open-account fields. Missing nickname defaults to product type (Checking/Savings)."""
     params = account_params(account)
     text = query or ""
     name_match = ACCOUNT_NAME_RE.search(text)
     use_match = USE_RE.search(text)
     if name_match:
-        params["account_name"] = name_match.group(1).strip(" .,'\"")
+        nickname = name_match.group(1).strip(" .,'\"")
+        # Ignore accidental captures that are just the product word.
+        if nickname and nickname.lower() not in {"checking", "savings", "account"}:
+            params["account_name"] = nickname
     if use_match:
         params["account_use"] = use_match.group(1).title()
+    # Always keep a concrete nickname: product type when the user omitted one.
+    if not str(params.get("account_name") or "").strip():
+        params["account_name"] = params["account"]
     return params
-
 
 def _open_account(account: str, query: str = "") -> PlannedTask:
     params = parse_open_fields(query, account)
@@ -207,7 +125,6 @@ def _open_account(account: str, query: str = "") -> PlannedTask:
         ),
         params,
     )
-
 
 def _delete_account(account: str) -> PlannedTask:
     if str(account).lower().startswith("check"):
@@ -226,14 +143,11 @@ def _delete_account(account: str) -> PlannedTask:
         params,
     )
 
-
 def _open_checking() -> PlannedTask:
     return _open_account("Checking")
 
-
 def _open_savings() -> PlannedTask:
     return _open_account("Savings")
-
 
 def _transfer(query: str) -> PlannedTask:
     parsed = parse_transfer_goal(query)
@@ -245,7 +159,6 @@ def _transfer(query: str) -> PlannedTask:
     )
     return PlannedTask("transfer", TRANSFER_FUNDS, goal, parsed)
 
-
 def _lookup_balance(account: str) -> PlannedTask:
     params = account_params(account)
     return PlannedTask(
@@ -255,14 +168,11 @@ def _lookup_balance(account: str) -> PlannedTask:
         params,
     )
 
-
 def _savings_balance() -> PlannedTask:
     return _lookup_balance("Savings")
 
-
 def _checking_balance() -> PlannedTask:
     return _lookup_balance("Checking")
-
 
 def classify_clause(clause: str, full_query: str = "") -> PlannedTask | None:
     text = clause or ""
@@ -272,8 +182,6 @@ def classify_clause(clause: str, full_query: str = "") -> PlannedTask | None:
         return _delete_account("Savings")
     if DELETE_GENERIC.search(text):
         return _delete_account("")
-    if CREATE_STATEMENT_RE.search(text):
-        return _create_statement(full_query or text)
     if OPEN_CHECKING.search(text):
         return _open_account("Checking", full_query or text)
     if OPEN_SAVINGS.search(text):
@@ -295,14 +203,12 @@ def classify_clause(clause: str, full_query: str = "") -> PlannedTask | None:
         return _checking_balance()
     return None
 
-
 def _scan_intents(query: str) -> list[PlannedTask]:
     found: list[tuple[int, PlannedTask]] = []
     mapping = [
         (DELETE_CHECKING, lambda: _delete_account("Checking")),
         (DELETE_SAVINGS, lambda: _delete_account("Savings")),
         (DELETE_GENERIC, lambda: _delete_account("")),
-        (CREATE_STATEMENT_RE, lambda: _create_statement(query)),
         (OPEN_CHECKING, lambda: _open_account("Checking", query)),
         (OPEN_SAVINGS, lambda: _open_account("Savings", query)),
         (TRANSFER, lambda: _transfer(query)),
@@ -323,11 +229,6 @@ def _scan_intents(query: str) -> list[PlannedTask]:
         tasks.append(task)
     amount = extract_amount(query)
     for task in tasks:
-        if task.kind == "create_statement":
-            task.params.update(parse_statement_fields(query))
-            account = task.params.get("account") or "all accounts"
-            month = task.params.get("month") or parse_month(query)
-            task.goal = f"Create a {month} statement for {account}"
         if task.kind == "open_account":
             task.params.update(parse_open_fields(query, task.params.get("account") or "Checking"))
         if task.kind == "transfer" and amount:
@@ -337,7 +238,6 @@ def _scan_intents(query: str) -> list[PlannedTask]:
                 f"to {task.params['to_account']}"
             )
     return tasks
-
 
 def plan_query(query: str) -> list[PlannedTask]:
     text = (query or "").strip()
@@ -373,18 +273,14 @@ def plan_query(query: str) -> list[PlannedTask]:
             return scanned
         if is_transfer_goal(text):
             return [_transfer(text)]
-        if CREATE_STATEMENT_RE.search(text) or "statement" in text.lower():
-            return [_create_statement(text)]
         if "checking" in text.lower():
             return [_checking_balance()]
         return [_savings_balance()]
     return tasks
 
-
 def is_open_account_goal(goal: str) -> bool:
     text = goal or ""
     return bool(OPEN_CHECKING.search(text) or OPEN_SAVINGS.search(text))
-
 
 def is_delete_account_goal(goal: str) -> bool:
     text = goal or ""
@@ -394,7 +290,3 @@ def is_delete_account_goal(goal: str) -> bool:
         or DELETE_GENERIC.search(text)
     )
 
-
-def is_create_statement_goal(goal: str) -> bool:
-    text = goal or ""
-    return bool(CREATE_STATEMENT_RE.search(text) or "statement" in text.lower())

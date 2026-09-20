@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 from app.agent.act import act as run_act
-from app.agent.safety import safety_check
+from app.agent.safety import async_safety_check
 from app.plan import account_params, is_transfer_goal, parse_transfer_goal, plan_query
 from app.agent.verify import verify as run_verify
 from app.browser.manager import BrowserManager
@@ -17,12 +17,11 @@ CURRENCY = re.compile(r"\$[\d,]+(?:\.\d{2})?")
 
 
 def current_inputs(goal: str = "") -> dict[str, str]:
-    member_id = os.getenv("BANK_USERNAME", "alex")
+    member_id = os.getenv("BANK_USERNAME", "alex123")
     inputs = {
         "member_id": member_id,
         "username": member_id,
-        "password": os.getenv("BANK_PASSWORD", "atlas123"),
-        "bank_url": os.getenv("BANK_URL", "http://127.0.0.1:5173/login"),
+        "bank_url": os.getenv("BANK_URL", "http://localhost:5173/login"),
     }
     tasks = plan_query(goal)
     if tasks:
@@ -55,16 +54,22 @@ def step_to_action(step: dict[str, Any], inputs: dict[str, str]) -> dict[str, An
         target_str = substitute(target.get("name") or target.get("value") or "", inputs)
     else:
         target_str = substitute(target.get("value") or "", inputs)
-    return {
+    action: dict[str, Any] = {
         "action": step.get("type"),
         "target": target_str,
         "value": substitute(step.get("value"), inputs),
         "reason": f"replay {step.get('id') or 'step'}",
+        "locator_policy": "dom_only",
     }
+    if strategy:
+        action["strategy"] = strategy
+    if target.get("role"):
+        action["role"] = target.get("role")
+    return action
 
 
 def _dashboard_url() -> str:
-    bank = os.getenv("BANK_URL", "http://127.0.0.1:5173/login")
+    bank = os.getenv("BANK_URL", "http://localhost:5173/login")
     lowered = bank.rstrip("/")
     if lowered.lower().endswith("/login"):
         return lowered[: -len("/login")] + "/dashboard"
@@ -91,7 +96,22 @@ async def _is_signed_in(browser_manager: BrowserManager) -> bool:
     if page is None:
         return False
     url = page.url or ""
-    return any(part in url for part in ("/dashboard", "/transfer", "/transactions"))
+    if not any(part in url for part in ("/dashboard", "/transfer", "/transactions")):
+        return False
+    wanted = (os.getenv("BANK_USERNAME", "alex123") or "alex123").strip().lower()
+    try:
+        from app.browser.accounts import _session_username
+
+        current = await _session_username(page)
+    except Exception:
+        current = None
+    if current is not None:
+        return current.lower() == wanted
+    # Fallback when session parse fails: signed-in chrome is visible.
+    try:
+        return await page.get_by_test_id("signed-in-member").count() > 0
+    except Exception:
+        return False
 
 
 async def _ensure_replay_location(
@@ -157,10 +177,6 @@ def _answer_from_outputs(
         if extras:
             return f"{account} account created successfully ({extras})."
         return f"{account} account created successfully."
-    if artifact_id in {"create_statement"}:
-        month = parsed.get("month") or "this month"
-        account = parsed.get("account") or "all accounts"
-        return f"Loaded {month} transactions for {account}."
     if artifact_id in {"delete_account"} or artifact_id.startswith("delete_"):
         account = parsed.get("account") or "Checking"
         if "deleted" in blob.lower():
@@ -188,8 +204,28 @@ async def run_replay(
     browser_manager: BrowserManager,
     run_logger: RunLogger | None = None,
     skip_auth: bool = False,
+    context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    from app.browser.viewport import current_viewport, viewport_compatible
+    from app.artifact.recorder import mark_viewport_validated
+
     inputs = current_inputs(goal)
+    context = dict(context or {})
+    for key, value in context.items():
+        if value is not None:
+            inputs[key] = value
+
+    active_viewport = getattr(browser_manager, "viewport", None) or current_viewport()
+    if not viewport_compatible(artifact, active_viewport):
+        return {
+            "status": "replay_failed",
+            "error": (
+                "Artifact is not DOM-portable (coordinate/screenshot locators). "
+                "Run discovery to create a DOM version for this viewport."
+            ),
+            "mode": "replay",
+        }
+
     if is_transfer_goal(goal) and not inputs.get("amount"):
         return {
             "status": "replay_failed",
@@ -202,6 +238,10 @@ async def run_replay(
         }
     print(
         f"[replay] flow={artifact.get('artifact_id')} "
+        f"v{artifact.get('version')} "
+        f"viewport={active_viewport.get('profile')} "
+        f"{active_viewport.get('width')}x{active_viewport.get('height')} "
+        f"locator=dom "
         f"account={inputs.get('account') or '-'} "
         f"account_name={inputs.get('account_name') or '-'} "
         f"account_use={inputs.get('account_use') or '-'} "
@@ -221,7 +261,11 @@ async def run_replay(
             {
                 "id": "step_0",
                 "type": "navigate",
-                "target": {"strategy": "url", "value": "{{bank_url}}"},
+                "target": {
+                    "strategy": "url",
+                    "value": "{{bank_url}}",
+                    "interaction": "dom",
+                },
             },
             *steps,
         ]
@@ -241,26 +285,66 @@ async def run_replay(
         action = step_to_action(step, inputs)
         print(
             f"[replay] {step.get('id')} {action['action']} "
+            f"strategy={action.get('strategy') or 'auto'} "
             f"target={action.get('target')} value={action.get('value')}"
         )
-        safety = safety_check(
+        safety = await async_safety_check(
             {
                 "action": action,
-                "allow_delete": str(artifact.get("artifact_id") or "") == "delete_account",
-            }
+                "goal": goal,
+                "params": inputs,
+                "allow_delete": bool(context.get("allow_delete"))
+                or str(artifact.get("artifact_id") or "") == "delete_account",
+                "allow_open": bool(context.get("allow_open"))
+                or str(artifact.get("artifact_id") or "") == "open_account",
+                "skip_large_transfer_approval": bool(
+                    context.get("skip_large_transfer_approval")
+                    or inputs.get("skip_large_transfer_approval")
+                ),
+                "guardrail_approved": bool(context.get("guardrail_approved")),
+            },
+            browser_manager=browser_manager,
+            run_logger=run_logger,
         )
         if safety.get("status") == "blocked":
-            return {**safety, "mode": "replay"}
+            message = str(safety.get("answer") or safety.get("error") or "Blocked by guardrail")
+            return {
+                "status": "guardrail_blocked",
+                "answer": message,
+                "error": message,
+                "mode": "replay",
+                "guardrail_decision": safety.get("guardrail_decision"),
+            }
 
         step_state = {
             **state,
             "action": action,
-            "allow_delete": str(artifact.get("artifact_id") or "") == "delete_account",
+            "params": inputs,
+            "allow_delete": bool(context.get("allow_delete"))
+            or str(artifact.get("artifact_id") or "") == "delete_account",
+            "allow_open": bool(context.get("allow_open"))
+            or str(artifact.get("artifact_id") or "") == "open_account",
+            "skip_large_transfer_approval": bool(
+                context.get("skip_large_transfer_approval")
+                or inputs.get("skip_large_transfer_approval")
+            ),
+            "guardrail_approved": bool(context.get("guardrail_approved")),
+            "guardrails_already_checked": True,
+            "run_logger": run_logger,
         }
         acted = await run_act(step_state, browser_manager)
         state.update(acted)
         if run_logger is not None:
             run_logger.log_act(action)
+        if acted.get("status") == "blocked":
+            message = str(acted.get("last_result") or acted.get("answer") or "Blocked by guardrail")
+            return {
+                "status": "guardrail_blocked",
+                "answer": message,
+                "error": message,
+                "mode": "replay",
+                "guardrail_decision": acted.get("guardrail_decision"),
+            }
         if str(acted.get("last_result") or "").startswith("Action failed"):
             if run_logger is not None:
                 run_logger.log_verify(action, False)
@@ -268,6 +352,7 @@ async def run_replay(
                 "status": "replay_failed",
                 "error": acted.get("last_result"),
                 "mode": "replay",
+                "viewport": active_viewport,
             }
         last = str(acted.get("last_result") or "").lower()
         if (
@@ -288,10 +373,28 @@ async def run_replay(
                 "status": "replay_failed",
                 "error": f"Checkpoint failed on {step.get('id')}",
                 "mode": "replay",
+                "viewport": active_viewport,
             }
 
     answer = _answer_from_outputs(artifact, state.get("outputs") or {}, state.get("last_result"), inputs)
-    print("[replay] done without LLM")
+    # Same DOM artifact worked on this screen — record without rediscovery.
+    try:
+        mark_viewport_validated(artifact, active_viewport)
+    except Exception:
+        pass
+    try:
+        from app.artifact.recorder import record_artifact_usage
+
+        artifact_id = str(artifact.get("artifact_id") or "")
+        version = int(artifact.get("version") or 0)
+        if artifact_id and version > 0:
+            record_artifact_usage(artifact_id, version)
+    except Exception:
+        pass
+    print(
+        f"[replay] done without LLM "
+        f"(viewport={active_viewport.get('profile')}, locator=dom)"
+    )
     return {
         "answer": answer,
         "outputs": state.get("outputs") or {},
@@ -301,4 +404,58 @@ async def run_replay(
         "artifact_path": artifact.get("_path"),
         "status": "replayed",
         "mode": "replay",
+        "viewport": active_viewport,
     }
+
+
+async def run_replay_with_fallbacks(
+    goal: str,
+    artifact: dict[str, Any] | None,
+    browser_manager: BrowserManager,
+    run_logger: RunLogger | None = None,
+    skip_auth: bool = False,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Try the preferred DOM artifact, then older versions, before callers start discovery.
+
+    Desktop-captured operators replay on tablet/mobile via DOM + scroll-into-view.
+    Only when no version works do runners create a new discovery version.
+    """
+    from app.artifact.recorder import iter_artifact_rollbacks
+
+    if artifact is None:
+        return {"status": "replay_failed", "error": "No artifact", "mode": "replay"}
+
+    candidates = [artifact]
+    artifact_id = str(artifact.get("artifact_id") or "")
+    seen_versions = {int(artifact.get("version") or 0)}
+    for older in iter_artifact_rollbacks(artifact_id):
+        version = int(older.get("version") or 0)
+        if version in seen_versions:
+            continue
+        seen_versions.add(version)
+        candidates.append(older)
+
+    last_error: dict[str, Any] = {
+        "status": "replay_failed",
+        "error": "UI changed",
+        "mode": "replay",
+    }
+    for candidate in candidates:
+        result = await run_replay(
+            goal,
+            candidate,
+            browser_manager,
+            run_logger,
+            skip_auth=skip_auth,
+            context=context,
+        )
+        if result.get("status") in {"replayed", "guardrail_blocked"}:
+            return result
+        last_error = result
+        print(
+            f"[replay] v{candidate.get('version')} failed on this viewport; "
+            f"trying older DOM artifact or discovery"
+        )
+    return last_error

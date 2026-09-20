@@ -1,84 +1,101 @@
 from __future__ import annotations
 
-from app.artifact.recorder import current_member_id, find_artifact_by_id, persist_artifact
-from app.artifact.replay import run_replay
-from app.browser.manager import BrowserManager
-from app.create_statement.runner import (
-    _format_amount,
-    _open_transactions,
-    parse_signed_amount,
-    scrape_transactions,
+import re
+
+from app.agent.act import act as run_act
+from app.agent.safety import safety_check
+from app.artifact.recorder import current_member_id, find_artifact_by_id
+from app.artifact.replay import run_replay_with_fallbacks
+from app.browser.accounts import (
+    ensure_dashboard,
+    ensure_signed_in,
 )
+from app.browser.manager import BrowserManager
+from app.guardrails.business import preflight_transfer_business
 from app.plan import TRANSFER_FUNDS, PlannedTask, parse_transfer_goal
+from app.run.confirm import ConfirmationTimeout, ask_yes_no
 from app.run.logger import RunLogger
 
-TRANSFER_FUNDS_STEPS = [
-    {
-        "id": "step_1",
-        "type": "navigate",
-        "target": {"strategy": "url", "value": "{{bank_url}}"},
-    },
-    {
-        "id": "step_2",
-        "type": "fill",
-        "target": {"strategy": "label", "value": "Username"},
-        "value": "{{member_id}}",
-    },
-    {
-        "id": "step_3",
-        "type": "fill",
-        "target": {"strategy": "label", "value": "Password"},
-        "value": "{{password}}",
-    },
-    {
-        "id": "step_4",
-        "type": "click",
-        "target": {"strategy": "role", "role": "button", "name": "Sign In"},
-    },
-    {
-        "id": "step_5",
-        "type": "click",
-        "target": {"strategy": "role", "role": "button", "name": "Transfer Money"},
-    },
-    {
-        "id": "step_6",
-        "type": "fill",
-        "target": {"strategy": "label", "value": "From Account"},
-        "value": "{{from_account}}",
-    },
-    {
-        "id": "step_7",
-        "type": "fill",
-        "target": {"strategy": "label", "value": "To Account"},
-        "value": "{{to_account}}",
-    },
-    {
-        "id": "step_8",
-        "type": "fill",
-        "target": {"strategy": "label", "value": "Amount"},
-        "value": "{{amount}}",
-    },
-    {
-        "id": "step_9",
-        "type": "click",
-        "target": {"strategy": "role", "role": "button", "name": "Review Transfer"},
-    },
-    {
-        "id": "step_10",
-        "type": "click",
-        "target": {"strategy": "role", "role": "button", "name": "Confirm Transfer"},
-    },
-    {
-        "id": "step_11",
-        "type": "click",
-        "target": {"strategy": "role", "role": "button", "name": "Transactions"},
-    },
-    {
-        "id": "step_12",
-        "type": "read",
-        "target": {"strategy": "testid", "value": "transaction-table"},
-    },
-]
+LARGE_TRANSFER_THRESHOLD = 5000.0
+
+SCRAPE_ROWS = """
+() => {
+  const table = document.querySelector('[data-testid="transaction-table"]');
+  if (!table) {
+    return [];
+  }
+  return [...table.querySelectorAll('tbody tr')].map((row) => {
+    const cells = [...row.querySelectorAll('td')].map((td) => td.textContent.trim());
+    if (cells.length < 6 || cells[0] === 'No matching transactions.') {
+      return null;
+    }
+    return {
+      date: row.getAttribute('data-date') || cells[0],
+      description: cells[1],
+      account: row.getAttribute('data-account') || cells[2],
+      amountText: cells[3],
+      type: cells[4],
+      status: cells[5],
+    };
+  }).filter(Boolean);
+}
+"""
+
+
+def parse_transfer_amount(value: object) -> float | None:
+    raw = str(value or "").replace(",", "").replace("$", "").strip()
+    if not raw:
+        return None
+    try:
+        return round(float(raw), 2)
+    except ValueError:
+        return None
+
+
+def parse_signed_amount(text: str) -> float:
+    raw = (text or "").replace(",", "").replace("−", "-").strip()
+    match = re.search(r"[\d]+(?:\.\d{1,2})?", raw)
+    if not match:
+        return 0.0
+    amount = float(match.group(0))
+    if raw.startswith("-"):
+        return round(-abs(amount), 2)
+    return round(amount, 2)
+
+
+def _format_amount(amount: float) -> str:
+    if amount > 0:
+        return f"+${amount:,.2f}"
+    if amount < 0:
+        return f"-${abs(amount):,.2f}"
+    return f"${amount:,.2f}"
+
+
+async def _run_action(browser_manager: BrowserManager, action: dict) -> str:
+    state = {
+        "action": action,
+        "goal": "",
+        "outputs": {},
+        "action_log": [],
+    }
+    safety = safety_check(state)
+    if safety.get("status") == "blocked":
+        return str(safety.get("answer") or safety.get("error") or "Action blocked.")
+    acted = await run_act(state, browser_manager)
+    return str(acted.get("last_result") or "")
+
+
+async def _open_transactions(browser_manager: BrowserManager) -> None:
+    page = await browser_manager.open()
+    if "/transactions" not in (page.url or ""):
+        await _run_action(browser_manager, {"action": "click", "target": "Transactions"})
+    await page.get_by_test_id("transaction-table").wait_for(state="visible", timeout=8000)
+
+
+async def scrape_transactions(browser_manager: BrowserManager) -> list[dict]:
+    page = await browser_manager.open()
+    rows = await page.evaluate(SCRAPE_ROWS)
+    return list(rows or [])
 
 
 def render_transfer_markdown(rows: list[dict]) -> str:
@@ -119,11 +136,7 @@ def _match_transfer_rows(
 ) -> list[dict]:
     source_l = source.lower()
     dest_l = destination.lower()
-    wanted = None
-    try:
-        wanted = round(float(str(amount).replace(",", "").replace("$", "")), 2)
-    except ValueError:
-        wanted = None
+    wanted = parse_transfer_amount(amount)
 
     debit_desc = f"transfer to {dest_l}"
     credit_desc = f"transfer from {source_l}"
@@ -159,6 +172,51 @@ def _match_transfer_rows(
         if len(matched) >= 2:
             break
     return matched[:2]
+
+
+def _approve_large_transfer(task: PlannedTask) -> str | None:
+    """Ask for human approval when amount > $5000 unless delete flow already approved."""
+    if task.params.get("skip_large_transfer_approval"):
+        return None
+    amount = parse_transfer_amount(task.params.get("amount"))
+    if amount is None or amount <= LARGE_TRANSFER_THRESHOLD:
+        return None
+    source = task.params.get("from_account") or "Savings"
+    destination = task.params.get("to_account") or "Checking"
+    print(
+        f"Transfer of ${amount:,.2f} from {source} to {destination} exceeds "
+        f"${LARGE_TRANSFER_THRESHOLD:,.0f} and requires human approval. Continue? (yes/no)"
+    )
+    try:
+        if not ask_yes_no("> "):
+            return "Transfer cancelled: human approval was not given."
+    except ConfirmationTimeout as exc:
+        return str(exc)
+    return None
+
+
+async def _preflight_transfer(
+    task: PlannedTask,
+    browser_manager: BrowserManager,
+    skip_auth: bool,
+    run_logger: RunLogger | None = None,
+) -> str | None:
+    """Business edge cases via the guardrail engine before Transfer UI."""
+    await ensure_signed_in(browser_manager, skip_auth=skip_auth, run_logger=run_logger)
+    await ensure_dashboard(browser_manager)
+
+    source = str(task.params.get("from_account") or "Savings").strip() or "Savings"
+    destination = str(task.params.get("to_account") or "Checking").strip() or "Checking"
+    amount = parse_transfer_amount(task.params.get("amount"))
+    decision = await preflight_transfer_business(
+        browser_manager,
+        from_account=source,
+        to_account=destination,
+        amount=amount,
+    )
+    if decision is not None and decision.blocked():
+        return decision.message
+    return None
 
 
 async def finalize_transfer(
@@ -200,89 +258,131 @@ async def run_transfer_funds(
             "Try: python3 -m app.main 'Transfer 20 from savings to checking'"
         )
 
+    # Resolve accounts/funds before asking about large-transfer approval.
+    # Create logger early so preflight guardrail decisions are audited.
+    logger = run_logger
+    if own_run or logger is None:
+        # Tentative kind; may still discovery-fallback later.
+        kind = "replay" if find_artifact_by_id(TRANSFER_FUNDS) else "discovery"
+        logger = RunLogger(kind, task.goal)
+        own_finish = True
+    else:
+        own_finish = False
+
+    blocked = await _preflight_transfer(task, browser_manager, skip_auth, run_logger=logger)
+    if blocked:
+        from app.guardrails.types import GuardrailDecision, HITLState, RiskLevel
+
+        decision = GuardrailDecision(
+            decision=HITLState.BLOCK,
+            risk=RiskLevel.HIGH,
+            rule="insufficient_funds"
+            if "insufficient funds" in blocked.lower()
+            else "transfer_account_not_found",
+            message=blocked,
+            status="blocked",
+            action="preflight",
+            target="transfer_funds",
+        )
+        logger.log_guardrail(decision)
+        if own_run or own_finish:
+            logger.finish(answer=blocked, task_kind="transfer")
+        return blocked
+
+    denied = _approve_large_transfer(task)
+    if denied:
+        from app.guardrails.types import GuardrailDecision, HITLState, RiskLevel
+
+        decision = GuardrailDecision(
+            decision=HITLState.BLOCK,
+            risk=RiskLevel.HIGH,
+            rule="hitl_denied",
+            message=denied,
+            status="blocked",
+            action="preflight",
+            target="large_transfer",
+        )
+        logger.log_guardrail(decision)
+        if own_run or own_finish:
+            logger.finish(answer=denied, error=denied, task_kind="transfer")
+        return denied
+
+    # Confirm-transfer HITL still applies unless this was a delete-driven transfer.
+    transfer_context = {
+        "skip_large_transfer_approval": bool(
+            task.params.get("skip_large_transfer_approval")
+        ),
+        "guardrail_approved": bool(task.params.get("skip_large_transfer_approval")),
+    }
+
     print(
         f"[transfer_funds] {task.params.get('amount')} "
         f"from {task.params.get('from_account')} to {task.params.get('to_account')}"
     )
     member_id = current_member_id()
     artifact = find_artifact_by_id(TRANSFER_FUNDS, member_id)
+
+    def _finish(log: RunLogger, answer: str, error: str | None = None) -> None:
+        if own_run or own_finish:
+            log.finish(
+                answer=answer,
+                error=error,
+                task_kind="transfer",
+            )
+
+    # Reuse the logger created for preflight audit.
     if artifact is not None:
         artifact_ref = f"{artifact.get('artifact_id')}/v{artifact.get('version')}"
-        logger = run_logger
-        if own_run or logger is None:
-            logger = RunLogger("replay", task.goal, artifact_used=artifact_ref)
-        else:
-            logger.note_operator(artifact_ref, created=False)
-            logger.event(type="operator", operator=artifact_ref, mode="replay")
+        logger.note_operator(artifact_ref, created=False)
+        logger.event(type="operator", operator=artifact_ref, mode="replay")
         try:
-            result = await run_replay(
+            result = await run_replay_with_fallbacks(
                 task.goal,
                 artifact,
                 browser_manager,
                 logger,
-                skip_auth=skip_auth,
+                skip_auth=True,
+                context=transfer_context,
             )
         except Exception as exc:
-            if own_run:
-                logger.finish(status="failed", error=str(exc))
+            _finish(logger, str(exc), error=str(exc))
             raise
         if result.get("status") == "replayed":
             answer = await finalize_transfer(task.goal, browser_manager, logger)
-            if own_run:
-                logger.finish(status="success")
+            _finish(logger, answer)
             return answer
-        if own_run:
-            logger.finish(
-                status="failed",
-                error=str(result.get("error") or result.get("status")),
-            )
-        print(f"[replay] failed: {result.get('error')}; falling back to discovery")
+        if result.get("status") == "guardrail_blocked":
+            answer = str(result.get("answer") or result.get("error") or "")
+            _finish(logger, answer)
+            return answer
+        error = str(result.get("error") or result.get("status") or "UI changed")
+        if "insufficient funds" in error.lower():
+            _finish(logger, error)
+            return error
+        print(f"[replay] failed: {error}; falling back to LLM discovery")
 
-    logger = run_logger
-    if own_run or logger is None:
-        logger = RunLogger("discovery", task.goal)
-    else:
-        logger.event(type="operator", operator=TRANSFER_FUNDS, mode="discovery")
+    from app.agent.discover import run_discovery
+
+    logger.event(type="operator", operator=TRANSFER_FUNDS, mode="discovery")
     try:
-        result = await run_replay(
+        answer = await run_discovery(
             task.goal,
-            {
-                "artifact_id": TRANSFER_FUNDS,
-                "steps": TRANSFER_FUNDS_STEPS,
-                "_path": None,
-            },
             browser_manager,
             logger,
-            skip_auth=skip_auth,
+            finish_run=False,
+            task_kind="transfer",
         )
-        if result.get("status") != "replayed":
-            if own_run:
-                logger.finish(
-                    status="failed",
-                    error=str(result.get("error") or result.get("status")),
-                )
-            return str(result.get("error") or "Transfer failed.")
-        path = persist_artifact(
-            {
-                "goal": task.goal,
-                "recorded_steps": TRANSFER_FUNDS_STEPS,
-                "checkpoints": {
-                    "member_details_displayed": True,
-                    "transfer_form_visible": True,
-                    "transfer_review_visible": True,
-                    "transfer_success_visible": True,
-                    "transactions_visible": True,
-                },
-            }
-        )
-        if path is not None:
-            logger.set_artifact_created(f"{TRANSFER_FUNDS}/v1")
-            print(f"Operator: {path}")
-        answer = await finalize_transfer(task.goal, browser_manager, logger)
-        if own_run:
-            logger.finish(status="success")
+        lowered = answer.lower()
+        if "insufficient funds" in lowered or "transfer to" in lowered or "transfer from" in lowered:
+            if "transfer to" in lowered or "transfer from" in lowered:
+                try:
+                    answer = await finalize_transfer(task.goal, browser_manager, logger)
+                except Exception:
+                    pass
+            _finish(logger, answer)
+            return answer
+        _finish(logger, answer)
         return answer
     except Exception as exc:
-        if own_run:
-            logger.finish(status="failed", error=str(exc))
+        _finish(logger, str(exc), error=str(exc))
         raise

@@ -6,6 +6,8 @@ from pathlib import Path
 from playwright.sync_api import Browser as PlaywrightBrowser
 from playwright.sync_api import BrowserContext, Locator, Page, Playwright, sync_playwright
 
+from app.browser.viewport import current_viewport
+
 SESSION_KEY = "atlas-bank.session"
 
 
@@ -22,6 +24,7 @@ class Browser:
     def __init__(self, headless: bool = False) -> None:
         self.headless = headless
         self.profile_dir = default_profile_dir()
+        self.viewport = current_viewport()
         self._playwright: Playwright | None = None
         self._browser: PlaywrightBrowser | None = None
         self._context: BrowserContext | None = None
@@ -34,9 +37,13 @@ class Browser:
         self.profile_dir.mkdir(parents=True, exist_ok=True)
         self._playwright = sync_playwright().start()
         profile = str(self.profile_dir)
+        size = {
+            "width": int(self.viewport.get("width") or 1280),
+            "height": int(self.viewport.get("height") or 900),
+        }
         launch_kwargs = {
             "headless": self.headless,
-            "viewport": {"width": 1280, "height": 900},
+            "viewport": size,
         }
         try:
             self._context = self._playwright.chromium.launch_persistent_context(
@@ -51,18 +58,19 @@ class Browser:
             )
         self._browser = self._context.browser
         self._page = self._context.pages[0] if self._context.pages else self._context.new_page()
+        self._page.set_viewport_size(size)
         self.clear_login_session()
 
     def clear_login_session(self) -> None:
         if self._session_cleared or self._page is None:
             return
-        bank_url = os.getenv("BANK_URL", "http://127.0.0.1:5173/login").strip()
+        bank_url = os.getenv("BANK_URL", "http://localhost:5173/login").strip()
         origin = bank_url
         for suffix in ("/login", "/dashboard", "/transfer", "/transactions", "/register"):
             if origin.endswith(suffix):
                 origin = origin[: -len(suffix)] or origin
                 break
-        origin = origin.rstrip("/") or "http://127.0.0.1:5173"
+        origin = origin.rstrip("/") or "http://localhost:5173"
         try:
             self._page.goto(origin + "/", wait_until="domcontentloaded")
             self._page.evaluate(

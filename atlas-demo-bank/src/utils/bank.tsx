@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
 import type { Account, AccountUse } from '../data/accounts'
 import { productName } from '../data/accounts'
-import type { Member } from '../data/members'
+import type { Member, LoginScenario } from '../data/members'
 import type { Transaction } from '../data/transactions'
 import {
   generateTransferId,
@@ -30,7 +30,7 @@ export type TransferResult = {
 export type RegisterInput = {
   fullName: string
   username: string
-  password: string
+  password?: string
   openChecking: boolean
   openSavings: boolean
 }
@@ -44,7 +44,8 @@ type BankContextValue = {
   currentMember: Member | null
   accounts: Account[]
   transactions: Transaction[]
-  login: (username: string, password: string) => string | null
+  login: (username: string) => string | null
+  peekScenario: (username: string) => LoginScenario | undefined
   register: (input: RegisterInput) => string | null
   logout: () => void
   openAccount: (
@@ -88,7 +89,7 @@ function createAccount(
     name: details?.name.trim() || accountName,
     use: details?.use === 'business' ? 'business' : 'personal',
     maskedNumber: `****${randomLast4()}`,
-    balance: accountName === 'Checking' ? 500.0 : 250.0,
+    balance: 0,
   }
 }
 
@@ -114,15 +115,17 @@ function openingAccounts(openChecking: boolean, openSavings: boolean): Account[]
 }
 
 function openingTransactions(accounts: Account[]): Transaction[] {
-  return accounts.map((account, index) => ({
-    transactionId: `TXN${String(index + 1).padStart(3, '0')}`,
-    date: todayISODate(),
-    description: 'Opening Deposit',
-    account: account.name,
-    amount: account.balance,
-    type: 'Credit',
-    status: 'Completed',
-  }))
+  return accounts
+    .filter((account) => account.balance > 0)
+    .map((account, index) => ({
+      transactionId: `TXN${String(index + 1).padStart(3, '0')}`,
+      date: todayISODate(),
+      description: 'Opening Deposit',
+      account: account.name,
+      amount: account.balance,
+      type: 'Credit',
+      status: 'Completed',
+    }))
 }
 
 export function BankProvider({ children }: { children: ReactNode }) {
@@ -140,34 +143,44 @@ export function BankProvider({ children }: { children: ReactNode }) {
       currentMember,
       accounts: currentMember?.accounts ?? [],
       transactions: currentMember?.transactions ?? [],
-      login(username, password) {
+      login(username) {
         const latestMembers = loadMembers()
+        const memberId = username.trim()
+        if (!/^[A-Za-z]+\d{3}$/.test(memberId)) {
+          return 'Username must be a name followed by exactly three digits (example: alex123).'
+        }
         const match = latestMembers.find(
-          (member) =>
-            member.username.toLowerCase() === username.trim().toLowerCase() &&
-            member.password === password,
+          (member) => member.username.toLowerCase() === memberId.toLowerCase(),
         )
         if (!match) {
-          return 'Invalid username or password.'
+          return 'Invalid username.'
         }
         setMembers(latestMembers)
         saveSessionId(match.id)
         setCurrentMember(match)
         return null
       },
+      peekScenario(username) {
+        const memberId = username.trim().toLowerCase()
+        const match =
+          loadMembers().find((member) => member.username.toLowerCase() === memberId) ??
+          (currentMember && currentMember.username.toLowerCase() === memberId
+            ? currentMember
+            : null)
+        return match?.loginScenario
+      },
       register(input) {
         const latestMembers = loadMembers()
         const fullName = input.fullName.trim()
         const username = input.username.trim().toLowerCase()
-        const password = input.password
         if (!fullName) {
           return 'Full name is required.'
         }
         if (!username) {
           return 'Username is required.'
         }
-        if (!password) {
-          return 'Password is required.'
+        if (!/^[a-z]+\d{3}$/.test(username)) {
+          return 'Username must be a name followed by exactly three digits (example: alex123).'
         }
         if (!input.openChecking && !input.openSavings) {
           return 'Select at least one account to open.'
@@ -181,7 +194,7 @@ export function BankProvider({ children }: { children: ReactNode }) {
           id: `member-${Date.now()}`,
           fullName,
           username,
-          password,
+          password: '',
           accounts,
           transactions: openingTransactions(accounts),
         }
@@ -217,24 +230,10 @@ export function BankProvider({ children }: { children: ReactNode }) {
         }
 
         const account = createAccount(accountName, details, member.accounts)
-        const transactionId = nextTransactionId(
-          member.transactions.map((item) => item.transactionId),
-        )
         const updated: Member = {
           ...member,
           accounts: [...member.accounts, account],
-          transactions: [
-            {
-              transactionId,
-              date: todayISODate(),
-              description: 'Opening Deposit',
-              account: account.name,
-              amount: account.balance,
-              type: 'Credit',
-              status: 'Completed',
-            },
-            ...member.transactions,
-          ],
+          transactions: member.transactions,
         }
         const nextMembers = upsertMember(latestMembers, updated)
         saveMembers(nextMembers)

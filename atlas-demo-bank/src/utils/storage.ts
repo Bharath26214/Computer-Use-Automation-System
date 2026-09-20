@@ -1,7 +1,7 @@
 import { seedMembers, type Member } from '../data/members'
 import { normalizeAccount } from '../data/accounts'
 
-const MEMBERS_KEY = 'atlas-bank.members'
+const MEMBERS_KEY = 'atlas-bank.members.v3'
 const SESSION_KEY = 'atlas-bank.session'
 
 function clone<T>(value: T): T {
@@ -56,7 +56,29 @@ export function seedMembersIfNeeded(): Member[] {
     saveMembers(members)
     return members
   }
-  return loadMembers()
+  // Ensure scenario demo users exist even if an older v3 blob was saved.
+  const existing = loadMembers()
+  let changed = false
+  let merged = [...existing]
+  for (const seed of seedMembers) {
+    const index = merged.findIndex(
+      (member) => member.username.toLowerCase() === seed.username.toLowerCase(),
+    )
+    if (index < 0) {
+      merged = [...merged, normalizeMember(clone(seed))]
+      changed = true
+    } else if (!merged[index].loginScenario && seed.loginScenario) {
+      merged[index] = {
+        ...merged[index],
+        loginScenario: seed.loginScenario,
+      }
+      changed = true
+    }
+  }
+  if (changed) {
+    saveMembers(merged)
+  }
+  return merged
 }
 
 export function upsertMember(members: Member[], updated: Member): Member[] {

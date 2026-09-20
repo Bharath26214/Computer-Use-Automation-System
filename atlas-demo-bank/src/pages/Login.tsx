@@ -1,17 +1,20 @@
 import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { AuthShell } from '../components/AuthShell'
+import { postLoginPath } from '../data/members'
 import { useBank } from '../utils/bank'
 
+const MEMBER_ID_RE = /^[A-Za-z]+\d{3}$/
+
 export function Login() {
-  const { currentMember, login } = useBank()
+  const { currentMember, login, peekScenario } = useBank()
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
 
   if (currentMember) {
-    return <Navigate to="/dashboard" replace />
+    const scenario = peekScenario?.(currentMember.username) ?? currentMember.loginScenario
+    return <Navigate to={postLoginPath(scenario)} replace />
   }
 
   return (
@@ -22,20 +25,22 @@ export function Login() {
         className="mt-6 space-y-5"
         onSubmit={(event) => {
           event.preventDefault()
-          if (!username.trim()) {
+          const memberId = username.trim()
+          if (!memberId) {
             setError('Username is required.')
             return
           }
-          if (!password) {
-            setError('Password is required.')
+          if (!MEMBER_ID_RE.test(memberId)) {
+            setError('Username must be a name followed by exactly three digits (example: alex123).')
             return
           }
-          const message = login(username, password)
+          const message = login(memberId)
           if (message) {
             setError(message)
             return
           }
-          navigate('/dashboard')
+          const scenario = peekScenario?.(memberId)
+          navigate(postLoginPath(scenario))
         }}
       >
         {error ? (
@@ -53,6 +58,7 @@ export function Login() {
             name="username"
             data-testid="username"
             autoComplete="username"
+            placeholder="alex123"
             value={username}
             onChange={(event) => {
               setUsername(event.target.value)
@@ -60,25 +66,10 @@ export function Login() {
             }}
             className="w-full rounded-md border border-slate-300 px-3 py-2.5"
           />
-        </div>
-
-        <div>
-          <label htmlFor="password" className="mb-1.5 block text-sm font-medium">
-            Password
-          </label>
-          <input
-            id="password"
-            name="password"
-            data-testid="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => {
-              setPassword(event.target.value)
-              setError('')
-            }}
-            className="w-full rounded-md border border-slate-300 px-3 py-2.5"
-          />
+          <p className="mt-1.5 text-xs text-slate-500">
+            Demo members: alex123 (normal), casey404 (404), morgan789 (MFA), taylor321
+            (reloading), blake000 (hard failure).
+          </p>
         </div>
 
         <button

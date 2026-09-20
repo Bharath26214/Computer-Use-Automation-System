@@ -24,6 +24,12 @@ class AgentState(TypedDict):
     checkpoint_passed: NotRequired[bool]
     error: NotRequired[str | None]
     risk_level: NotRequired[str | None]
+    allow_delete: NotRequired[bool]
+    allow_open: NotRequired[bool]
+    guardrails_already_checked: NotRequired[bool]
+    guardrail_decision: NotRequired[str | None]
+    guardrail_rule: NotRequired[str | None]
+    error_events: NotRequired[list[dict]]
     iteration: int
     max_iterations: int
     status: str

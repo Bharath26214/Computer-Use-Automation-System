@@ -8,7 +8,6 @@ export function Register() {
   const navigate = useNavigate()
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
   const [openChecking, setOpenChecking] = useState(true)
   const [openSavings, setOpenSavings] = useState(false)
   const [error, setError] = useState('')
@@ -28,7 +27,6 @@ export function Register() {
           const message = register({
             fullName,
             username,
-            password,
             openChecking,
             openSavings,
           })
@@ -71,6 +69,7 @@ export function Register() {
             name="username"
             data-testid="username"
             autoComplete="username"
+            placeholder="alex123"
             value={username}
             onChange={(event) => {
               setUsername(event.target.value)
@@ -78,25 +77,9 @@ export function Register() {
             }}
             className="w-full rounded-md border border-slate-300 px-3 py-2.5"
           />
-        </div>
-
-        <div>
-          <label htmlFor="password" className="mb-1.5 block text-sm font-medium">
-            Password
-          </label>
-          <input
-            id="password"
-            name="password"
-            data-testid="password"
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(event) => {
-              setPassword(event.target.value)
-              setError('')
-            }}
-            className="w-full rounded-md border border-slate-300 px-3 py-2.5"
-          />
+          <p className="mt-1.5 text-xs text-slate-500">
+            Letters followed by exactly three digits.
+          </p>
         </div>
 
         <fieldset className="rounded-md border border-slate-200 p-3">
