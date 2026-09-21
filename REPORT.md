@@ -49,6 +49,8 @@ Trade-offs favored a DOM-driven browser surface (stable locators, reviewable art
 
 ## 2. Artifact schema
 
+Full field reference: [operators/schema.md](./operators/schema.md).
+
 Each operator is a reviewable capability contract: identity (`artifact_id`, integer version, title, description), typed inputs (opaque member id, account product, amounts, nicknames), typed outputs (balance shape, transfer ledger rows, status messages), ordered steps with locator strategy and a short robustness note, success conditions, viewport hints, optional `error_handling` stamps, and query signatures for matching. Values that vary per call use `{{param}}` placeholders; credentials and raw PII are not stored.
 
 Versioning keeps history: identical steps and error sets update in place; a new error path or different step sequence allocates `vN+1`. Metadata tracks per-version usage, attempts, failures, and approval (`draft` until at least three successes at ≥75% success rate, then `approved`). Replay prefers the most frequently successful compatible version and can roll back to older versions before failing closed.
