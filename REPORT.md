@@ -1,6 +1,6 @@
 # REPORT.md — Computer-Use Automation System
 
-Atlas turns a natural-language banking goal into a reusable capability: an LLM discovers the workflow once against a live UI, the successful path is saved as a typed operator, and later invocations replay that operator without the model. The target is a local demo bank. Run evidence lives under [`evidence/`](evidence/); per-test durations are in the [discovery field guide](evidence/discovery/atlas-discovery-field-guide.md) and [replay playbook](evidence/replay/atlas-replay-playbook.md).
+Atlas turns a natural-language banking goal into a reusable capability: an LLM discovers the workflow once against a live UI, the successful path is saved as a typed operator, and later invocations replay that operator without the model. The target is a local demo bank. Run evidence lives under [evidence/](./evidence/); per-test durations are in the [discovery field guide](./evidence/discovery/atlas-discovery-field-guide.md) and [replay playbook](./evidence/replay/atlas-replay-playbook.md).
 
 ## 1. Architecture
 

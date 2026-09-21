@@ -43,4 +43,4 @@ Thirteen desktop cases: four users × lookup → transfer → delete → open, p
 
 Scenario users stamp `error_handling` on the operator they create (`{}` for alex123; `page_not_found` / `reloading` for the others). blake000 does not produce a reusable operator. Durations are `ended_at − started_at` from `summary.json` (includes HITL wait time).
 
-Source of truth: `tests/discovery/cases.py`.
+Source of truth: [tests/discovery/cases.py](../../tests/discovery/cases.py).

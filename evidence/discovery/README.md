@@ -21,10 +21,10 @@ lookup_balance  →  transfer (< $5000)  →  delete savings  →  open savings
 ```
 
 5. The harness forces discovery for the case capability; nested helpers (lookup/transfer inside delete) may still replay an existing operator.
-6. New operator versions are created only when steps or handled-error sets differ. See `operators/README.md` for versioning, approval, and usage chains.
+6. New operator versions are created only when steps or handled-error sets differ. See [operators/README.md](../../operators/README.md) for versioning, approval, and usage chains.
 7. Each successful case writes `evidence/discovery/run_NNN/` and updates `operators/{capability}/`.
 
-Case definitions: `tests/discovery/cases.py`.  
+Case definitions: [tests/discovery/cases.py](../../tests/discovery/cases.py).  
 Test catalog and descriptions: [atlas-discovery-field-guide.md](./atlas-discovery-field-guide.md).
 
 ## Evidence layout

@@ -22,10 +22,10 @@ discovery all  →  replay all
 
    Keep Group A order (lookup → transfer → delete → open) so savings state lines up for test4 and the mobile open case.
 5. The harness sets `ATLAS_FORCE_REPLAY=1`. Artifact selection prefers a scenario-compatible version, then most-frequent among matches, with rollbacks if replay fails.
-6. Successful replays update per-version usage, attempts, and approval in `operators/*/metadata.json`. See `operators/README.md`.
+6. Successful replays update per-version usage, attempts, and approval in `operators/*/metadata.json`. See [operators/README.md](../../operators/README.md).
 7. Each run writes `evidence/replay/run_NNN/`.
 
-Case definitions: `tests/replay/cases.py`.  
+Case definitions: [tests/replay/cases.py](../../tests/replay/cases.py).  
 Test catalog and descriptions: [atlas-replay-playbook.md](./atlas-replay-playbook.md).
 
 ## Evidence layout

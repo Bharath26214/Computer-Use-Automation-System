@@ -52,4 +52,4 @@ Sixteen cases in four groups. No silent prep — each case is one CLI invocation
 
 Durations are `ended_at − started_at` from `summary.json` (includes HITL wait time). Exceptional-state examples: run_005 (already exists), run_007 (HITL reject), run_008 (insufficient funds).
 
-Source of truth: `tests/replay/cases.py`.
+Source of truth: [tests/replay/cases.py](../../tests/replay/cases.py).

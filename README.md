@@ -2,25 +2,23 @@
 
 Backend-style computer use for legacy bank UIs: an LLM **discovers** a workflow once, saves a typed **operator** artifact, then **replays** it deterministically without the model. Human confirmation is required for irreversible steps on the live browser session.
 
-Assignment write-up: `[REPORT.md](REPORT.md)`.
+write-up: [REPORT.md](./REPORT.md).
 
 ## Documentation map
 
 
 | Document                                                                                                 | Contents                                                                         |
 | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `[REPORT.md](REPORT.md)`                                                                                 | Design write-up (architecture, schema, errors, multi-tenant, HITL, safety, cuts) |
-| `[atlas-demo-bank/setup.md](atlas-demo-bank/setup.md)`                                                   | How to launch the demo bank and seeded members                                   |
-| `[operators/README.md](operators/README.md)`                                                             | Operator overview (schema, versioning, approval)                                 |
-| `[operators/schema.md](operators/schema.md)`                                                             | Artifact schema detail                                                           |
-| `[operators/versioning.md](operators/versioning.md)`                                                     | Version bump and rollback rules                                                  |
-| `[operators/confidence-and-approval.md](operators/confidence-and-approval.md)`                           | Usage counts, attempts, draft → approved                                         |
-| `[evidence/discovery/README.md](evidence/discovery/README.md)`                                           | Discovery flow                                                                   |
-| `[evidence/discovery/atlas-discovery-field-guide.md](evidence/discovery/atlas-discovery-field-guide.md)` | Discovery tests, descriptions, and run durations                                 |
-| `[evidence/replay/README.md](evidence/replay/README.md)`                                                 | Replay flow                                                                      |
-| `[evidence/replay/atlas-replay-playbook.md](evidence/replay/atlas-replay-playbook.md)`                   | Replay tests, descriptions, and run durations                                    |
-
-
+| [REPORT.md](./REPORT.md)                                                                                 | Design write-up (architecture, schema, errors, multi-tenant, HITL, safety, cuts) |
+| [atlas-demo-bank/setup.md](./atlas-demo-bank/setup.md)                                                   | How to launch the demo bank and seeded members                                   |
+| [operators/README.md](./operators/README.md)                                                             | Operator overview (schema, versioning, approval)                                 |
+| [operators/schema.md](./operators/schema.md)                                                             | Artifact schema detail                                                           |
+| [operators/versioning.md](./operators/versioning.md)                                                     | Version bump and rollback rules                                                  |
+| [operators/confidence-and-approval.md](./operators/confidence-and-approval.md)                           | Usage counts, attempts, draft → approved                                         |
+| [evidence/discovery/README.md](./evidence/discovery/README.md)                                           | Discovery flow                                                                   |
+| [evidence/discovery/atlas-discovery-field-guide.md](./evidence/discovery/atlas-discovery-field-guide.md) | Discovery tests, descriptions, and run durations                                 |
+| [evidence/replay/README.md](./evidence/replay/README.md)                                                 | Replay flow                                                                      |
+| [evidence/replay/atlas-replay-playbook.md](./evidence/replay/atlas-replay-playbook.md)                   | Replay tests, descriptions, and run durations                                    |
 
 
 ## Prerequisites
@@ -29,15 +27,11 @@ Assignment write-up: `[REPORT.md](REPORT.md)`.
 - Node.js 18+ (demo bank)
 - A Groq API key (discovery only; replay does not call the LLM)
 
-
-
 ## Setup
-
-
 
 ### 1. Demo bank
 
-See `[atlas-demo-bank/setup.md](atlas-demo-bank/setup.md)`.
+See [atlas-demo-bank/setup.md](./atlas-demo-bank/setup.md).
 
 ```bash
 cd atlas-demo-bank
@@ -69,7 +63,7 @@ With the bank running and `.env` configured:
 python3 -m app.main -u alex123 "What is my checking account balance?"
 ```
 
-**Replay (no LLM decisions, uses** `operators/`**):**
+**Replay (no LLM decisions, uses `operators/`):**
 
 ```bash
 # After operators exist; harness forces replay-only
@@ -95,7 +89,7 @@ Interactive HITL: agent clicks Delete/Open/Confirm → you confirm in the browse
 python3 -m tests.replay test8   # insufficient funds — structured business outcome
 ```
 
-See `[evidence/replay/run_008/](evidence/replay/run_008/)` and the duration table in `[evidence/replay/atlas-replay-playbook.md](evidence/replay/atlas-replay-playbook.md)`.
+See [evidence/replay/run_008/](./evidence/replay/run_008/) and the duration table in [evidence/replay/atlas-replay-playbook.md](./evidence/replay/atlas-replay-playbook.md).
 
 ## Repository layout
 
@@ -109,8 +103,6 @@ REPORT.md            Design write-up
 requirements.txt     Python dependencies
 .env.example         Config template
 ```
-
-
 
 ## Configuration
 
@@ -128,4 +120,4 @@ CLI supports `-u` username, `--viewport desktop|laptop|tablet|mobile`, and `--ye
 - Replay: 16 runs under `evidence/replay/run_*` (total **4m 00s**, `model_turns: 0`)
 - Operators: `lookup_balance`, `transfer_funds`, `open_account`, `delete_account` with per-version draft/approved metadata
 
-Per-test workflow: [discovery field guide](evidence/discovery/atlas-discovery-field-guide.md) and [replay playbook](evidence/replay/atlas-replay-playbook.md).
+Per-test workflow: [discovery field guide](./evidence/discovery/atlas-discovery-field-guide.md) and [replay playbook](./evidence/replay/atlas-replay-playbook.md).
