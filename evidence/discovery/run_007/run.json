@@ -3,13 +3,18 @@
   "type": "discovery",
   "goal": "Delete my savings account",
   "target_url": "http://localhost:5173/login",
-  "started_at": "2026-09-20T22:50:35Z",
-  "ended_at": "2026-09-20T22:51:01Z",
+  "started_at": "2026-09-21T16:45:18Z",
+  "ended_at": "2026-09-21T16:45:59Z",
   "status": "pass",
   "outcome": "Account deleted",
-  "llm_used": true,
-  "llm_model": "openai/gpt-oss-20b",
-  "model_turns": 4,
+  "outcome_code": "account_deleted",
+  "outcome_source": "explicit",
+  "outcome_evidence": {
+    "outcome_code": "account_deleted"
+  },
+  "llm_used": false,
+  "llm_model": null,
+  "model_turns": 0,
   "retries": 0,
   "artifact_sequence": [
     {
@@ -26,19 +31,19 @@
     },
     {
       "order": 3,
-      "artifact": "delete_account/v2",
+      "artifact": "delete_account/v1",
       "mode": "discovery",
       "created": true
     }
   ],
   "operators_created": [
-    "delete_account/v2"
+    "delete_account/v1"
   ],
   "operators_used": [
     "lookup_balance/v2",
     "transfer_funds/v2"
   ],
-  "artifact_created": "delete_account/v2",
+  "artifact_created": "delete_account/v1",
   "artifact_used": "lookup_balance/v2",
   "guardrail_audit": [
     {
@@ -130,46 +135,6 @@
       "guardrail_decision": "allow",
       "rule": "pass",
       "message": "UI page ok (/transactions)"
-    },
-    {
-      "step": 10,
-      "action": "click",
-      "target": "Dashboard",
-      "status": "allowed",
-      "risk": "low",
-      "guardrail_decision": "allow",
-      "rule": "pass",
-      "message": "UI page ok (/transactions)"
-    },
-    {
-      "step": 11,
-      "action": "click",
-      "target": "Delete Savings Account",
-      "status": "allowed",
-      "risk": "high",
-      "guardrail_decision": "allow",
-      "rule": "pass",
-      "message": "UI page ok (/dashboard)"
-    },
-    {
-      "step": 12,
-      "action": "read",
-      "target": "open-account-message",
-      "status": "allowed",
-      "risk": "low",
-      "guardrail_decision": "allow",
-      "rule": "pass",
-      "message": "UI page ok (/dashboard)"
-    },
-    {
-      "step": 13,
-      "action": "finish",
-      "target": null,
-      "status": "allowed",
-      "risk": "low",
-      "guardrail_decision": "allow",
-      "rule": "terminal_action",
-      "message": "Terminal action allowed"
     }
   ],
   "error_events": [],
@@ -184,12 +149,30 @@
     "screenshots/success_transfer_done.png"
   ],
   "transfer": "transfer.md",
+  "dom_signals": {
+    "checking_present": true,
+    "open_button_present": true,
+    "open_account_message": true,
+    "message_text": "savings account deleted.",
+    "account_deleted_message": true,
+    "account_missing_after_delete": true
+  },
   "task_results": [
     {
       "status": "pass",
       "outcome": "Account deleted",
+      "outcome_code": "account_deleted",
+      "outcome_source": "dom",
+      "outcome_evidence": {
+        "checking_present": true,
+        "open_button_present": true,
+        "open_account_message": true,
+        "message_text": "savings account deleted.",
+        "account_deleted_message": true,
+        "account_missing_after_delete": true
+      },
       "artifact": "delete_account"
     }
   ],
-  "final_response": "Your savings account balance is $200.00.\n**Status:** success\n\n| Date | Description | Account | Amount | Type | Status |\n| --- | --- | --- | ---: | --- | --- |\n| 2026-09-20 | Transfer to Checking | Savings | -$200.00 | Debit | Completed |\n| 2026-09-20 | Transfer from Savings | Checking | +$200.00 | Credit | Completed |\n\nSavings account deleted."
+  "final_response": "Your savings account balance is $12,800.00.\n**Status:** success\n\n| Date | Description | Account | Amount | Type | Status |\n| --- | --- | --- | ---: | --- | --- |\n| 2026-09-21 | Transfer to Checking | Savings | -$12,800.00 | Debit | Completed |\n| 2026-09-21 | Transfer from Savings | Checking | +$12,800.00 | Credit | Completed |\n\nSavings account deleted."
 }

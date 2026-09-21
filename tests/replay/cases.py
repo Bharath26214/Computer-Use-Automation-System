@@ -3,6 +3,10 @@
 
 No prep runs. Each case is a single CLI invocation.
 
+HITL methodology (same as discovery — see tests.hitl):
+  Agent clicks → app confirmation page → human Yes/Confirm in browser → resume
+  (or confirm_reply=yes / --yes to auto-click app confirms).
+
 Group A — first 4 from discovery (alex123):
   lookup → transfer <5k → delete savings → open savings
 
@@ -23,7 +27,7 @@ Group D — error-handling replay (scenario users):
 Run:
   python3 -m tests.replay list
   python3 -m tests.replay test1
-  python3 -m tests.replay all
+  python3 -m tests.replay all --yes
 """
 
 from __future__ import annotations
@@ -37,6 +41,7 @@ from tests.discovery.cases import (
     OPEN_QUERY,
     TRANSFER_QUERY,
 )
+from tests.hitl import UNSET, hitl_defaults
 
 USER = "alex123"
 SCENARIO = "normal"
@@ -53,10 +58,19 @@ def _case(
     viewport: str = DEFAULT_VIEWPORT,
     expect: str = "pass",
     expect_outcome: str | None = None,
-    confirm_reply: str | None = None,
+    confirm_reply: Any = UNSET,
     notes: str | None = None,
+    needs_hitl: bool | None = None,
 ) -> dict[str, Any]:
-    return {
+    hitl = hitl_defaults(
+        artifact_id,
+        query=query,
+        expect=expect,
+        confirm_reply=confirm_reply,
+        notes=notes,
+        needs_hitl=needs_hitl,
+    )
+    case: dict[str, Any] = {
         "id": test_id,
         "title": title,
         "mode": "replay",
@@ -67,10 +81,10 @@ def _case(
         "viewport": viewport,
         "expect": expect,
         "expect_outcome": expect_outcome,
-        "confirm_reply": confirm_reply,
         "clear_operator": False,
-        "notes": notes,
     }
+    case.update(hitl)
+    return case
 
 
 # test1–4: identical to discovery test1–4 (alex123).
@@ -81,7 +95,7 @@ DISCOVERY_MIRROR: list[dict[str, Any]] = [
         artifact_id="lookup_balance",
         query=LOOKUP_QUERY,
         expect_outcome="Balance retrieved",
-        notes="Identical to discovery test1.",
+        notes="Identical to discovery test1. No HITL.",
     ),
     _case(
         "test2",
@@ -89,7 +103,7 @@ DISCOVERY_MIRROR: list[dict[str, Any]] = [
         artifact_id="transfer_funds",
         query=TRANSFER_QUERY,
         expect_outcome="Transfer completed",
-        notes="Identical to discovery test2.",
+        notes="Identical to discovery test2. Under $5000 — no HITL.",
     ),
     _case(
         "test3",
@@ -97,7 +111,7 @@ DISCOVERY_MIRROR: list[dict[str, Any]] = [
         artifact_id="delete_account",
         query=DELETE_QUERY,
         expect_outcome="Account deleted",
-        notes="Identical to discovery test3.",
+        notes="Identical to discovery test3. " + hitl_defaults("delete_account")["notes"],
     ),
     _case(
         "test4",
@@ -105,7 +119,7 @@ DISCOVERY_MIRROR: list[dict[str, Any]] = [
         artifact_id="open_account",
         query=OPEN_QUERY,
         expect_outcome="Account opened",
-        notes="Identical to discovery test4.",
+        notes="Identical to discovery test4. " + hitl_defaults("open_account")["notes"],
     ),
 ]
 
@@ -117,7 +131,9 @@ EDGE_CASES: list[dict[str, Any]] = [
         artifact_id="open_account",
         query="Open a checking account named Extra Checking for personal use",
         expect_outcome="Account already exists",
-        notes="Seeded checking is already open.",
+        confirm_reply=None,
+        needs_hitl=False,
+        notes="Seeded checking already open — no Open click / no HITL.",
     ),
     _case(
         "test6",
@@ -126,7 +142,6 @@ EDGE_CASES: list[dict[str, Any]] = [
         query="Transfer 6000 from checking to savings",
         expect_outcome="Transfer completed",
         confirm_reply="yes",
-        notes="Large-transfer HITL: human accepts.",
     ),
     _case(
         "test7",
@@ -136,7 +151,6 @@ EDGE_CASES: list[dict[str, Any]] = [
         expect="fail",
         expect_outcome="Human did not confirm",
         confirm_reply="no",
-        notes="Large-transfer HITL: human rejects.",
     ),
     _case(
         "test8",
@@ -144,7 +158,9 @@ EDGE_CASES: list[dict[str, Any]] = [
         artifact_id="transfer_funds",
         query="Transfer 99999 from checking to savings",
         expect_outcome="Insufficient funds",
-        notes="Amount exceeds balance.",
+        confirm_reply=None,
+        needs_hitl=False,
+        notes="Amount exceeds balance — blocked before Confirm; no HITL.",
     ),
 ]
 
@@ -157,6 +173,7 @@ VIEWPORT_CASES: list[dict[str, Any]] = [
         query=LOOKUP_QUERY,
         viewport="tablet",
         expect_outcome="Balance retrieved",
+        notes="Tablet lookup. No HITL.",
     ),
     _case(
         "test10",
@@ -165,6 +182,7 @@ VIEWPORT_CASES: list[dict[str, Any]] = [
         query=TRANSFER_QUERY,
         viewport="tablet",
         expect_outcome="Transfer completed",
+        notes="Tablet transfer under $5000 — no HITL.",
     ),
     _case(
         "test11",
@@ -173,7 +191,6 @@ VIEWPORT_CASES: list[dict[str, Any]] = [
         query=DELETE_QUERY,
         viewport="mobile",
         expect_outcome="Account deleted",
-        notes="Waits for real human yes/no (transfer if needed, then irreversible delete).",
     ),
     _case(
         "test12",
@@ -182,7 +199,8 @@ VIEWPORT_CASES: list[dict[str, Any]] = [
         query=OPEN_QUERY,
         viewport="mobile",
         expect_outcome="Account opened",
-        notes="Follows mobile delete; savings is missing.",
+        notes="Follows mobile delete (savings missing). "
+        + hitl_defaults("open_account")["notes"],
     ),
 ]
 
@@ -196,7 +214,7 @@ ERROR_CASES: list[dict[str, Any]] = [
         artifact_id="lookup_balance",
         query=LOOKUP_QUERY,
         expect_outcome="Balance retrieved",
-        notes="Replays operator version that handles page_not_found.",
+        notes="Replays page_not_found operator. No HITL.",
     ),
     _case(
         "test14",
@@ -206,7 +224,7 @@ ERROR_CASES: list[dict[str, Any]] = [
         artifact_id="transfer_funds",
         query=TRANSFER_QUERY,
         expect_outcome="Transfer completed",
-        notes="Replays operator version that handles page_not_found.",
+        notes="Replays page_not_found operator. Under $5000 — no HITL.",
     ),
     _case(
         "test15",
@@ -216,7 +234,7 @@ ERROR_CASES: list[dict[str, Any]] = [
         artifact_id="lookup_balance",
         query=LOOKUP_QUERY,
         expect_outcome="Balance retrieved",
-        notes="Replays operator version that handles reloading.",
+        notes="Replays reloading operator. No HITL.",
     ),
     _case(
         "test16",
@@ -226,7 +244,7 @@ ERROR_CASES: list[dict[str, Any]] = [
         artifact_id="transfer_funds",
         query=TRANSFER_QUERY,
         expect_outcome="Transfer completed",
-        notes="Replays operator version that handles reloading.",
+        notes="Replays reloading operator. Under $5000 — no HITL.",
     ),
 ]
 

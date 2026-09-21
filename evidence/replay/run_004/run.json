@@ -1,0 +1,104 @@
+{
+  "run_id": "run_004",
+  "type": "replay",
+  "goal": "Open a savings account named Travel Fund for personal use",
+  "target_url": "http://localhost:5173/login",
+  "started_at": "2026-09-21T16:51:36Z",
+  "ended_at": "2026-09-21T16:51:46Z",
+  "status": "pass",
+  "outcome": "Account opened",
+  "outcome_code": "account_opened",
+  "outcome_source": "explicit",
+  "outcome_evidence": {
+    "outcome_code": "account_opened"
+  },
+  "llm_used": false,
+  "llm_model": null,
+  "model_turns": 0,
+  "retries": 0,
+  "artifact_sequence": [
+    {
+      "order": 1,
+      "artifact": "open_account/v1",
+      "mode": "replay",
+      "created": false
+    }
+  ],
+  "operators_created": [],
+  "operators_used": [
+    "open_account/v1"
+  ],
+  "artifact_created": null,
+  "artifact_used": "open_account/v1",
+  "guardrail_audit": [
+    {
+      "step": 1,
+      "action": "fill",
+      "target": "Account name",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    },
+    {
+      "step": 2,
+      "action": "fill",
+      "target": "Use",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    },
+    {
+      "step": 3,
+      "action": "click",
+      "target": "Open Savings Account",
+      "status": "allowed",
+      "risk": "high",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    }
+  ],
+  "error_events": [],
+  "checkpoints": null,
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900,
+    "locator_policy": "dom_only"
+  },
+  "screenshots": [
+    "screenshots/success_account_opened.png"
+  ],
+  "dom_signals": {
+    "checking_present": true,
+    "savings_present": true,
+    "both_accounts_present": true,
+    "open_account_message": true,
+    "message_text": "travel fund account opened.",
+    "account_opened_message": true,
+    "account_card_present": true
+  },
+  "task_results": [
+    {
+      "status": "pass",
+      "outcome": "Account opened",
+      "outcome_code": "account_opened",
+      "outcome_source": "dom",
+      "outcome_evidence": {
+        "checking_present": true,
+        "savings_present": true,
+        "both_accounts_present": true,
+        "open_account_message": true,
+        "message_text": "travel fund account opened.",
+        "account_opened_message": true,
+        "account_card_present": true
+      },
+      "artifact": "open_account"
+    }
+  ],
+  "final_response": "Savings account created successfully (Travel Fund, Personal)."
+}

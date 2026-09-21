@@ -7,4 +7,4 @@
 {"step": 7, "type": "observe", "url": "http://localhost:5173/dashboard", "title": "Atlas Bank"}
 {"step": 8, "type": "llm_decision", "action": "finish", "turn": 2}
 {"step": 9, "type": "guardrail", "action": "finish", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "terminal_action", "message": "Terminal action allowed"}
-{"step": 10, "type": "task_result", "operator": "lookup_balance", "status": "pass", "outcome": "Balance retrieved"}
+{"step": 10, "type": "task_result", "operator": "lookup_balance", "status": "pass", "outcome": "Balance retrieved", "outcome_code": "balance_retrieved", "outcome_source": "dom"}

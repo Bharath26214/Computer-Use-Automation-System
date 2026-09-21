@@ -1,0 +1,130 @@
+{
+  "run_id": "run_002",
+  "type": "replay",
+  "goal": "Transfer 100 from checking to savings",
+  "target_url": "http://localhost:5173/login",
+  "started_at": "2026-09-21T16:50:24Z",
+  "ended_at": "2026-09-21T16:50:42Z",
+  "status": "pass",
+  "outcome": "Transfer completed",
+  "outcome_code": "transfer_completed",
+  "outcome_source": "explicit",
+  "outcome_evidence": {
+    "outcome_code": "transfer_completed"
+  },
+  "llm_used": false,
+  "llm_model": null,
+  "model_turns": 0,
+  "retries": 0,
+  "artifact_sequence": [
+    {
+      "order": 1,
+      "artifact": "transfer_funds/v1",
+      "mode": "replay",
+      "created": false
+    }
+  ],
+  "operators_created": [],
+  "operators_used": [
+    "transfer_funds/v1"
+  ],
+  "artifact_created": null,
+  "artifact_used": "transfer_funds/v1",
+  "guardrail_audit": [
+    {
+      "step": 1,
+      "action": "click",
+      "target": "Transfer Money",
+      "status": "allowed",
+      "risk": "medium",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    },
+    {
+      "step": 2,
+      "action": "fill",
+      "target": "From Account",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 3,
+      "action": "fill",
+      "target": "To Account",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 4,
+      "action": "fill",
+      "target": "Amount",
+      "status": "allowed",
+      "risk": "medium",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 5,
+      "action": "click",
+      "target": "Review Transfer",
+      "status": "allowed",
+      "risk": "medium",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 6,
+      "action": "click",
+      "target": "Confirm Transfer",
+      "status": "allowed",
+      "risk": "high",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 7,
+      "action": "click",
+      "target": "Transactions",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    }
+  ],
+  "error_events": [],
+  "checkpoints": null,
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900,
+    "locator_policy": "dom_only"
+  },
+  "screenshots": [
+    "screenshots/success_transfer_done.png"
+  ],
+  "transfer": "transfer.md",
+  "task_results": [
+    {
+      "status": "pass",
+      "outcome": "Transfer completed",
+      "outcome_code": "transfer_completed",
+      "outcome_source": "answer_heuristic",
+      "outcome_evidence": {
+        "matched": "transfer_rows"
+      },
+      "artifact": "transfer_funds"
+    }
+  ],
+  "final_response": "**Status:** success\n\n| Date | Description | Account | Amount | Type | Status |\n| --- | --- | --- | ---: | --- | --- |\n| 2026-09-21 | Transfer to Savings | Checking | -$100.00 | Debit | Completed |\n| 2026-09-21 | Transfer from Checking | Savings | +$100.00 | Credit | Completed |\n"
+}

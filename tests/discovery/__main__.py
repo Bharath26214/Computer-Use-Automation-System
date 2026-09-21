@@ -6,11 +6,15 @@ Forces discovery only for the case capability
 delete) replay when already saved. New operator versions are created only when
 steps or handled-error sets differ (e.g. reload / page_not_found users).
 
+HITL (see tests.hitl): agent clicks → app confirm page → YOU click Yes/Confirm
+in the browser → type resume. Do not pass --yes unless you want the agent to
+auto-click confirms. For unattended suites: `all --yes`.
+
 Examples:
   python3 -m tests.discovery list
-  python3 -m tests.discovery test1
-  python3 -m tests.discovery test1 --print-only
-  python3 -m tests.discovery all
+  python3 -m tests.discovery test3          # interactive HITL
+  python3 -m tests.discovery test3 --yes    # agent clicks confirms
+  python3 -m tests.discovery all --yes
 """
 
 from __future__ import annotations
@@ -34,6 +38,13 @@ def _run_case(test_id: str, *, print_only: bool, auto_yes: bool = False) -> int:
     os.environ.pop("ATLAS_FORCE_REPLAY", None)
     os.environ["ATLAS_FORCE_DISCOVERY"] = "1"
     os.environ["ATLAS_FORCE_DISCOVERY_ARTIFACT"] = str(case["artifact_id"])
+
+    # Restore seed Checking+Savings except when open_account expects a missing product
+    # (right after delete in the same user block).
+    if str(case.get("artifact_id") or "") == "open_account":
+        os.environ.pop("ATLAS_RESET_MEMBER_ACCOUNTS", None)
+    else:
+        os.environ["ATLAS_RESET_MEMBER_ACCOUNTS"] = "1"
 
     viewport = case.get("viewport", "desktop")
     confirm = case.get("confirm_reply")
@@ -93,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         "-y",
         "--yes",
         action="store_true",
-        help="Auto-answer HITL prompts with yes for every case (except explicit reject cases).",
+        help="Auto-confirm HITL handoffs with --yes on every case (except explicit reject cases).",
     )
     args = parser.parse_args(argv)
     target = args.target.strip().lower()

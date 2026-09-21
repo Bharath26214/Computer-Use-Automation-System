@@ -21,8 +21,8 @@
         5
       ],
       "max_attempts": 2,
-      "recorded_occurrences": 6,
-      "last_message": "Recovered after reload wait (5s)",
+      "recorded_occurrences": 1,
+      "last_message": "Handled reloading for member taylor321",
       "last_status": "recovered"
     }
   },
@@ -71,6 +71,31 @@
         "robustness": "Locate by ARIA role + accessible name so the control remains findable if layout shifts but semantics stay the same.",
         "interaction": "dom"
       }
+    },
+    {
+      "id": "step_2",
+      "type": "click",
+      "description": "Delete account \u2014 click Delete {{account}} Account",
+      "risk": "high",
+      "target": {
+        "strategy": "role",
+        "role": "button",
+        "name": "Delete {{account}} Account",
+        "robustness": "Locate by ARIA role + accessible name so the control remains findable if layout shifts but semantics stay the same.",
+        "interaction": "dom"
+      }
+    },
+    {
+      "id": "step_3",
+      "type": "read",
+      "description": "Read status message \u2014 read open-account-message",
+      "risk": "low",
+      "target": {
+        "strategy": "testid",
+        "value": "open-account-message",
+        "robustness": "Prefer data-testid attributes; they are stable across copy changes and less brittle than visible text.",
+        "interaction": "dom"
+      }
     }
   ],
   "success_conditions": [
@@ -80,8 +105,8 @@
       "required": true
     },
     {
-      "id": "checking_balance_visible",
-      "description": "Checking account balance card/text is present.",
+      "id": "account_deleted",
+      "description": "The account is gone or a delete confirmation message is shown.",
       "required": true
     }
   ],

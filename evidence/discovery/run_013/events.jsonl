@@ -1,4 +1,5 @@
 {"step": 1, "type": "operator", "operator": "lookup_balance", "mode": "discovery"}
 {"step": 2, "type": "error", "kind": "hard_failure", "message": "Hard failure \u2014 retrying once, then cannot recover", "status": "retrying", "action": "navigate", "target": "post-login", "attempt": 1, "delay_sec": 1.0, "details": {"scenario": "hard_failure"}}
 {"step": 3, "type": "error", "kind": "hard_failure", "message": "Cannot be recovered: hard failure remains after retry (no other error paths for this member)", "status": "terminal", "action": "navigate", "target": "post-login", "actual_page": "/unavailable", "attempt": 1, "delay_sec": 1.0, "details": {"scenario": "hard_failure"}}
-{"step": 4, "type": "task_result", "operator": "lookup_balance", "status": "failed", "outcome": "Hard failure"}
+{"step": 4, "type": "outcome", "outcome_code": "human_did_not_confirm", "outcome_source": "hitl", "evidence": {"status": "terminal", "reason": "terminal"}}
+{"step": 5, "type": "task_result", "operator": "lookup_balance", "status": "failed", "outcome": "Human did not confirm", "outcome_code": "human_did_not_confirm", "outcome_source": "explicit"}

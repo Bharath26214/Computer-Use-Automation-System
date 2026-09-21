@@ -61,7 +61,9 @@ CHECKING_BALANCE = re.compile(
     re.IGNORECASE,
 )
 ACCOUNT_NAME_RE = re.compile(
-    r"(?:named|account\s+name\b|\bname\b)\s*(?:is|:)?\s*['\"]?(.+?)['\"]?(?=\s*,|\s+use\b|\s+personal\b|\s+business\b|\s+then\b|\s+and then\b|$)",
+    r"(?:named|account\s+name\b|\bname\b)\s*(?:is|:)?\s*['\"]?(.+?)['\"]?"
+    r"(?=\s*,|\s+use\b|\s+for\s+(?:personal|business)\b|\s+personal\b|"
+    r"\s+business\b|\s+then\b|\s+and then\b|$)",
     re.IGNORECASE,
 )
 USE_RE = re.compile(r"\b(personal|business)\b", re.IGNORECASE)

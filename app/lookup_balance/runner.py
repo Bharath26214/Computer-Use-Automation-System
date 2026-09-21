@@ -122,6 +122,14 @@ async def run_lookup_balance(
                 result.get("outputs") or {},
             )
             if own_run:
+                try:
+                    await logger.capture_dom_outcome(
+                        browser_manager.page,
+                        task_kind="get_balance",
+                        account=account,
+                    )
+                except Exception:
+                    pass
                 logger.finish(answer=answer, task_kind="get_balance")
             path = artifact.get("_path")
             if path:
@@ -131,6 +139,14 @@ async def run_lookup_balance(
         if not allow_discovery_fallback():
             print(f"[replay] failed: {error}; discovery fallback disabled")
             if own_run:
+                try:
+                    await logger.capture_dom_outcome(
+                        browser_manager.page,
+                        task_kind="get_balance",
+                        account=account,
+                    )
+                except Exception:
+                    pass
                 logger.finish(error=error, answer=error, task_kind="get_balance")
             return error
         print(f"[replay] failed: {error}; falling back to LLM discovery")
@@ -156,6 +172,14 @@ async def run_lookup_balance(
         )
         answer = _format_balance_answer(account, account_key, answer)
         if own_run:
+            try:
+                await logger.capture_dom_outcome(
+                    browser_manager.page,
+                    task_kind="get_balance",
+                    account=account,
+                )
+            except Exception:
+                pass
             logger.finish(answer=answer, task_kind="get_balance")
         return answer
     except Exception as exc:

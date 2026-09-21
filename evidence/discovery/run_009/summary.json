@@ -3,7 +3,11 @@
   "model": "openai/gpt-oss-20b",
   "model_turns": 2,
   "retries": 0,
-  "started_at": "2026-09-20T22:51:30Z",
-  "ended_at": "2026-09-20T22:51:42Z",
-  "final_response": "Your checking account balance is $16,950.75."
+  "started_at": "2026-09-21T16:46:56Z",
+  "ended_at": "2026-09-21T16:47:11Z",
+  "status": "pass",
+  "outcome": "Balance retrieved",
+  "outcome_code": "balance_retrieved",
+  "outcome_source": "explicit",
+  "final_response": "Your checking account balance is $4,250.75."
 }

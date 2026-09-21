@@ -225,6 +225,25 @@ async def ensure_signed_in(
     }:
         raise RuntimeError(gate.message)
 
+    # Discovery (and other) harnesses can restore seed Checking+Savings after login
+    # so a prior delete in persistent localStorage does not fail transfer cases.
+    if (os.getenv("ATLAS_RESET_MEMBER_ACCOUNTS") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "y",
+        "on",
+    }:
+        from app.browser.seed import reset_member_accounts_to_seed
+
+        if await reset_member_accounts_to_seed(page, wanted):
+            print(f"[seed] restored Checking+Savings for {wanted}")
+            try:
+                await page.reload(wait_until="domcontentloaded")
+                await page.wait_for_load_state("networkidle")
+            except Exception:
+                pass
+
     try:
         await page.get_by_test_id("signed-in-member").wait_for(state="visible", timeout=12000)
     except Exception:

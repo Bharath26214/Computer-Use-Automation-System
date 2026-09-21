@@ -494,15 +494,25 @@ def _on_disk_versions(artifact_id: str) -> list[int]:
 
 def read_metadata(artifact_id: str) -> dict[str, Any]:
     """
-    Version pointer + usage so the most frequently used operator is preferred.
+    Version pointer + per-version usage / attempts / approval.
 
       {
         "artifact_id": "lookup_balance",
         "latest": 2,
         "most_frequent": 2,
-        "usage_counts": {"1": 3, "2": 10}
+        "usage_counts": {"1": 3, "2": 10},
+        "attempt_counts": {"1": 4, "2": 12},
+        "failure_counts": {"1": 1, "2": 2},
+        "approval": {"1": "draft", "2": "approved"}
       }
     """
+    from app.artifact.approval import (
+        APPROVAL_DRAFT,
+        normalize_version_maps,
+        parse_approval_map,
+        parse_int_map,
+    )
+
     path = metadata_path(artifact_id)
     on_disk = _on_disk_versions(artifact_id)
     fallback = on_disk[0] if on_disk else 0
@@ -511,6 +521,9 @@ def read_metadata(artifact_id: str) -> dict[str, Any]:
         "latest": fallback,
         "most_frequent": fallback,
         "usage_counts": {},
+        "attempt_counts": {},
+        "failure_counts": {},
+        "approval": {},
     }
     if not path.is_file():
         return empty
@@ -520,14 +533,21 @@ def read_metadata(artifact_id: str) -> dict[str, Any]:
         return empty
     if not isinstance(data, dict):
         return empty
-    usage_raw = data.get("usage_counts") or {}
-    usage_counts: dict[str, int] = {}
-    if isinstance(usage_raw, dict):
-        for key, value in usage_raw.items():
-            try:
-                usage_counts[str(int(key))] = int(value)
-            except (TypeError, ValueError):
-                continue
+
+    usage_counts, attempt_counts, failure_counts, approval = normalize_version_maps(
+        on_disk=on_disk,
+        usage_counts=parse_int_map(data.get("usage_counts")),
+        attempt_counts=parse_int_map(data.get("attempt_counts")),
+        failure_counts=parse_int_map(data.get("failure_counts")),
+        approval=parse_approval_map(data.get("approval")),
+    )
+    # Drop versions no longer on disk.
+    on_disk_set = set(on_disk)
+    usage_counts = {k: v for k, v in usage_counts.items() if int(k) in on_disk_set}
+    attempt_counts = {k: v for k, v in attempt_counts.items() if int(k) in on_disk_set}
+    failure_counts = {k: v for k, v in failure_counts.items() if int(k) in on_disk_set}
+    approval = {k: v for k, v in approval.items() if int(k) in on_disk_set}
+
     most = data.get("most_frequent")
     latest = data.get("latest")
     if not isinstance(most, int) or most < 1:
@@ -539,6 +559,11 @@ def read_metadata(artifact_id: str) -> dict[str, Any]:
         "latest": latest,
         "most_frequent": most,
         "usage_counts": usage_counts,
+        "attempt_counts": attempt_counts,
+        "failure_counts": failure_counts,
+        "approval": approval or {
+            str(v): APPROVAL_DRAFT for v in on_disk
+        },
     }
 
 
@@ -561,22 +586,56 @@ def write_metadata(
     latest: int | None = None,
     *,
     usage_counts: dict[str, int] | None = None,
+    attempt_counts: dict[str, int] | None = None,
+    failure_counts: dict[str, int] | None = None,
+    approval: dict[str, str] | None = None,
 ) -> Path:
     """
-    Persist metadata with usage_counts and pin latest/most_frequent to the
-    most frequently used on-disk version (ties → higher version; all-zero → latest).
+    Persist metadata with per-version usage/attempts/failures/approval and pin
+    latest/most_frequent to the most frequently used on-disk version
+    (ties → higher version; all-zero → latest).
     """
+    from app.artifact.approval import (
+        APPROVAL_DRAFT,
+        compute_approval_status,
+        normalize_version_maps,
+    )
+
     path = metadata_path(artifact_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     current = read_metadata(artifact_id)
     counts = dict(current.get("usage_counts") or {})
+    attempts = dict(current.get("attempt_counts") or {})
+    failures = dict(current.get("failure_counts") or {})
+    status = dict(current.get("approval") or {})
     if usage_counts is not None:
         for key, value in usage_counts.items():
             counts[str(int(key))] = int(value)
+    if attempt_counts is not None:
+        for key, value in attempt_counts.items():
+            attempts[str(int(key))] = int(value)
+    if failure_counts is not None:
+        for key, value in failure_counts.items():
+            failures[str(int(key))] = int(value)
+    if approval is not None:
+        for key, value in approval.items():
+            status[str(int(key))] = str(value)
+
     on_disk = _on_disk_versions(artifact_id)
-    counts = {key: value for key, value in counts.items() if int(key) in set(on_disk)}
+    counts, attempts, failures, status = normalize_version_maps(
+        on_disk=on_disk,
+        usage_counts=counts,
+        attempt_counts=attempts,
+        failure_counts=failures,
+        approval=status,
+    )
+    # Refresh approval from live stats (new versions stay draft until thresholds).
     for version in on_disk:
-        counts.setdefault(str(version), 0)
+        key = str(version)
+        status[key] = compute_approval_status(
+            successes=int(counts.get(key) or 0),
+            attempts=int(attempts.get(key) or 0),
+        )
 
     all_zero = all(int(counts.get(str(v)) or 0) == 0 for v in on_disk) if on_disk else True
     if all_zero and latest is not None:
@@ -591,19 +650,132 @@ def write_metadata(
         "latest": int(preferred),
         "most_frequent": int(preferred),
         "usage_counts": {str(v): int(counts.get(str(v)) or 0) for v in sorted(on_disk)},
+        "attempt_counts": {
+            str(v): int(attempts.get(str(v)) or 0) for v in sorted(on_disk)
+        },
+        "failure_counts": {
+            str(v): int(failures.get(str(v)) or 0) for v in sorted(on_disk)
+        },
+        "approval": {
+            str(v): status.get(str(v), APPROVAL_DRAFT) for v in sorted(on_disk)
+        },
     }
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return path
 
 
-def record_artifact_usage(artifact_id: str, version: int) -> dict[str, Any]:
-    """Increment use count for a version and re-pin metadata to most frequent."""
+def ensure_version_draft(artifact_id: str, version: int) -> dict[str, Any]:
+    """Ensure a newly written version exists in metadata as draft with zero stats."""
+    from app.artifact.approval import APPROVAL_DRAFT
+
     meta = read_metadata(artifact_id)
-    counts = dict(meta.get("usage_counts") or {})
     key = str(int(version))
-    counts[key] = int(counts.get(key) or 0) + 1
-    write_metadata(artifact_id, usage_counts=counts)
+    usage = dict(meta.get("usage_counts") or {})
+    attempts = dict(meta.get("attempt_counts") or {})
+    failures = dict(meta.get("failure_counts") or {})
+    approval = dict(meta.get("approval") or {})
+    usage.setdefault(key, 0)
+    attempts.setdefault(key, 0)
+    failures.setdefault(key, 0)
+    approval[key] = APPROVAL_DRAFT
+    write_metadata(
+        artifact_id,
+        int(version),
+        usage_counts=usage,
+        attempt_counts=attempts,
+        failure_counts=failures,
+        approval=approval,
+    )
     return read_metadata(artifact_id)
+
+
+def record_artifact_usage(artifact_id: str, version: int) -> dict[str, Any]:
+    """Record a successful replay: +1 attempt, +1 usage; may promote to approved."""
+    meta = read_metadata(artifact_id)
+    key = str(int(version))
+    usage = dict(meta.get("usage_counts") or {})
+    attempts = dict(meta.get("attempt_counts") or {})
+    failures = dict(meta.get("failure_counts") or {})
+    usage[key] = int(usage.get(key) or 0) + 1
+    attempts[key] = int(attempts.get(key) or 0) + 1
+    failures.setdefault(key, 0)
+    write_metadata(
+        artifact_id,
+        usage_counts=usage,
+        attempt_counts=attempts,
+        failure_counts=failures,
+    )
+    return read_metadata(artifact_id)
+
+
+def record_artifact_failure(artifact_id: str, version: int) -> dict[str, Any]:
+    """Record a failed replay attempt: +1 attempt, +1 failure; may demote to draft."""
+    meta = read_metadata(artifact_id)
+    key = str(int(version))
+    usage = dict(meta.get("usage_counts") or {})
+    attempts = dict(meta.get("attempt_counts") or {})
+    failures = dict(meta.get("failure_counts") or {})
+    usage.setdefault(key, 0)
+    attempts[key] = int(attempts.get(key) or 0) + 1
+    failures[key] = int(failures.get(key) or 0) + 1
+    write_metadata(
+        artifact_id,
+        usage_counts=usage,
+        attempt_counts=attempts,
+        failure_counts=failures,
+    )
+    return read_metadata(artifact_id)
+
+
+def is_version_approved(artifact_id: str, version: int) -> bool:
+    from app.artifact.approval import APPROVAL_APPROVED
+
+    meta = read_metadata(artifact_id)
+    key = str(int(version))
+    return str((meta.get("approval") or {}).get(key) or "") == APPROVAL_APPROVED
+
+
+def assert_approved_for_production(
+    artifact_id: str,
+    version: int | None = None,
+) -> None:
+    """
+    Raise SystemExit when --yes production auto-confirm is armed but the
+    operator version is still draft. Replay validation may bypass via
+    ATLAS_ALLOW_DRAFT_YES=1.
+    """
+    from app.artifact.approval import (
+        APPROVAL_APPROVED,
+        production_block_message,
+        version_stats_from_meta,
+    )
+    from app.run.confirm import auto_confirm_reply
+
+    if auto_confirm_reply() is not True:
+        return
+    if (os.getenv("ATLAS_ALLOW_DRAFT_YES") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "y",
+    }:
+        return
+
+    meta = read_metadata(artifact_id)
+    versions = [int(version)] if version and int(version) > 0 else list(
+        _on_disk_versions(artifact_id)
+    )
+    blocked: list[str] = []
+    for ver in versions:
+        stats = version_stats_from_meta(meta, ver)
+        if stats["status"] != APPROVAL_APPROVED:
+            blocked.append(
+                f"{artifact_id}/v{ver} ({stats['status']}: "
+                f"{stats['successes']}/{stats['attempts']} successes, "
+                f"{stats['success_rate']:.0%} rate)"
+            )
+    if blocked:
+        raise SystemExit(production_block_message(blocked))
 
 
 def version_candidates(artifact_id: str) -> list[int]:
@@ -1285,7 +1457,8 @@ def save_artifact(artifact: dict[str, Any]) -> Path:
     path = artifact_path_for(artifact_id, version)
     payload = {key: value for key, value in artifact.items() if not str(key).startswith("_")}
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    write_metadata(artifact_id, version)
+    # New versions always start draft until enough successful replays promote them.
+    ensure_version_draft(artifact_id, version)
     return path
 
 

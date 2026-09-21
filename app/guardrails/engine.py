@@ -24,13 +24,14 @@ ALLOWED_ACTIONS = {
     "request_human",
 }
 
-# Actions that always require human approval unless already granted in state.
+# Final confirmation controls on the app confirmation page (human clicks these).
 HITL_TARGETS = (
     "confirm transfer",
-    "delete checking account",
-    "delete savings account",
-    "open checking account",
-    "open savings account",
+    "yes, confirm",
+    "confirm-delete-checking",
+    "confirm-delete-savings",
+    "confirm-open-checking",
+    "confirm-open-savings",
 )
 
 LARGE_TRANSFER_THRESHOLD = 5000.0
@@ -52,6 +53,30 @@ def _amount_from_state(state: dict[str, Any]) -> float | None:
         return None
 
 
+def _is_app_confirm_control(target: str) -> bool:
+    """True for Yes / Yes, Confirm / confirm-delete-* / confirm-open-* / transfer-before-delete."""
+    lower = target.lower().strip()
+    if lower in {
+        "yes",
+        "yes, confirm",
+        "yes confirm",
+        "confirm-delete-checking",
+        "confirm-delete-savings",
+        "confirm-open-checking",
+        "confirm-open-savings",
+        "confirm-transfer-before-delete-checking",
+        "confirm-transfer-before-delete-savings",
+    }:
+        return True
+    if lower.startswith("confirm-delete-") or lower.startswith("confirm-open-"):
+        return True
+    if "transfer-before-delete" in lower:
+        return True
+    if "yes" in lower and "confirm" in lower:
+        return True
+    return False
+
+
 def _requires_hitl(action: dict, state: dict[str, Any], risk: RiskLevel) -> bool:
     if state.get("guardrail_approved") or state.get("hitl_approved"):
         return False
@@ -59,23 +84,29 @@ def _requires_hitl(action: dict, state: dict[str, Any], risk: RiskLevel) -> bool
     target = str(action.get("target") or "").lower()
     if name != "click":
         return False
-    if "delete" in target and "account" in target:
-        return not bool(state.get("allow_delete"))
-    if "open" in target and "account" in target:
-        return not bool(state.get("allow_open"))
+    # Agent may click Delete / Open Account (opens the confirmation page).
+    # HITL is only on the app's Yes, Confirm / Confirm Transfer control.
+    if _is_app_confirm_control(target):
+        return True
     if "confirm transfer" in target:
         if state.get("skip_large_transfer_approval"):
             return False
         amount = _amount_from_state(state)
-        # Large transfers always need HITL at confirm; small ones are allow + high risk audit.
         return amount is not None and amount > LARGE_TRANSFER_THRESHOLD
     return False
 
 
 def _approval_prompt(action: dict, risk: RiskLevel, message: str | None = None) -> str:
-    target = action.get("target") or action.get("action") or "this action"
-    base = message or f"Guardrail requires approval for {target} (risk={risk.value}). Continue? (yes/no)"
-    return base if base.endswith("(yes/no)") or base.endswith("(yes/no) ") else f"{base} (yes/no)"
+    from app.run.confirm import confirmation_label
+
+    target = action.get("target") or action.get("action") or "Yes, Confirm"
+    label = confirmation_label(str(target))
+    if message:
+        return message
+    return (
+        f"Confirmation page open (risk={risk.value}): "
+        f"click “{label}” in the browser, then type resume."
+    )
 
 
 async def evaluate_guardrails(
@@ -90,6 +121,8 @@ async def evaluate_guardrails(
     Single enforcement point for risk, UI page, business rules, and HITL.
 
     Returns allow / block / require_approval (resolved to allow/block when ask_hitl).
+    On browser handoff resume, rule is hitl_handoff_resumed (caller must not re-click).
+    On --yes, rule is hitl_approved (agent clicks the confirmation control).
     """
     state = dict(state or {})
     action = dict(action or {})
@@ -196,17 +229,31 @@ async def evaluate_guardrails(
             checkpoints=state.get("checkpoints"),
         )
         if hitl.status.value == "approved":
-            decision = GuardrailDecision(
-                decision=HITLState.ALLOW,
-                risk=risk,
-                rule="hitl_approved",
-                message="Human intervention: approved",
-                status="allowed",
-                action=name,
-                target=target,
-                expected_page=expected,
-                actual_page=url,
-            )
+            handoff = (hitl.details or {}).get("handoff")
+            if handoff == "human_clicked":
+                decision = GuardrailDecision(
+                    decision=HITLState.ALLOW,
+                    risk=risk,
+                    rule="hitl_handoff_resumed",
+                    message=hitl.message,
+                    status="allowed",
+                    action=name,
+                    target=target,
+                    expected_page=expected,
+                    actual_page=url,
+                )
+            else:
+                decision = GuardrailDecision(
+                    decision=HITLState.ALLOW,
+                    risk=risk,
+                    rule="hitl_approved",
+                    message=hitl.message,
+                    status="allowed",
+                    action=name,
+                    target=target,
+                    expected_page=expected,
+                    actual_page=url,
+                )
             _audit(run_logger, decision)
             return decision
         if hitl.status.value == "rejected":
@@ -214,7 +261,7 @@ async def evaluate_guardrails(
                 decision=HITLState.BLOCK,
                 risk=risk,
                 rule="hitl_denied",
-                message="Human intervention: rejected",
+                message=hitl.message or "Human declined confirmation",
                 status="blocked",
                 action=name,
                 target=target,

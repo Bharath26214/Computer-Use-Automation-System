@@ -1,0 +1,77 @@
+{
+  "run_id": "run_009",
+  "type": "replay",
+  "goal": "What is my checking account balance?",
+  "target_url": "http://localhost:5173/login",
+  "started_at": "2026-09-21T16:53:28Z",
+  "ended_at": "2026-09-21T16:53:32Z",
+  "status": "pass",
+  "outcome": "Balance retrieved",
+  "outcome_code": "balance_retrieved",
+  "outcome_source": "explicit",
+  "outcome_evidence": {
+    "outcome_code": "balance_retrieved"
+  },
+  "llm_used": false,
+  "llm_model": null,
+  "model_turns": 0,
+  "retries": 0,
+  "artifact_sequence": [
+    {
+      "order": 1,
+      "artifact": "lookup_balance/v1",
+      "mode": "replay",
+      "created": false
+    }
+  ],
+  "operators_created": [],
+  "operators_used": [
+    "lookup_balance/v1"
+  ],
+  "artifact_created": null,
+  "artifact_used": "lookup_balance/v1",
+  "guardrail_audit": [
+    {
+      "step": 1,
+      "action": "read",
+      "target": "checking-account",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    }
+  ],
+  "error_events": [],
+  "checkpoints": null,
+  "viewport": {
+    "profile": "tablet",
+    "width": 768,
+    "height": 1024,
+    "locator_policy": "dom_only"
+  },
+  "dom_signals": {
+    "checking_present": true,
+    "savings_present": true,
+    "both_accounts_present": true,
+    "balance_visible": true,
+    "account_card_present": true
+  },
+  "task_results": [
+    {
+      "status": "pass",
+      "outcome": "Balance retrieved",
+      "outcome_code": "balance_retrieved",
+      "outcome_source": "dom",
+      "outcome_evidence": {
+        "checking_present": true,
+        "savings_present": true,
+        "both_accounts_present": true,
+        "balance_visible": true,
+        "account_card_present": true
+      },
+      "artifact": "lookup_balance"
+    }
+  ],
+  "final_response": "Your checking account balance is $15,301.50."
+}

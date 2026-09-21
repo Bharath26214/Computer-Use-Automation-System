@@ -1,0 +1,13 @@
+{
+  "run_id": "run_008",
+  "model": null,
+  "model_turns": 0,
+  "retries": 0,
+  "started_at": "2026-09-21T16:53:16Z",
+  "ended_at": "2026-09-21T16:53:21Z",
+  "status": "pass",
+  "outcome": "Insufficient funds",
+  "outcome_code": "insufficient_funds",
+  "outcome_source": "explicit",
+  "final_response": "Insufficient funds in Checking account (available $15,301.50, requested $99,999.00). Transfer was not completed."
+}

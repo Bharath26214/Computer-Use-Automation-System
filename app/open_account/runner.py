@@ -17,7 +17,6 @@ from app.browser.accounts import (
 )
 from app.browser.manager import BrowserManager
 from app.plan import OPEN_ACCOUNT, PlannedTask
-from app.run.confirm import ConfirmationTimeout, ask_yes_no
 from app.run.logger import RunLogger
 
 
@@ -99,26 +98,23 @@ async def run_open_account(
             "Additional accounts are not allowed."
         )
 
-    print(
-        f"Create a {account} account named {name} ({use})? "
-        "This will open the account in Atlas Bank. (yes/no)"
-    )
-    try:
-        if not ask_yes_no("> "):
-            return f"{account} account was not created."
-    except ConfirmationTimeout as exc:
-        return str(exc)
-
-    # Downstream guardrails treat open clicks as pre-approved by this HITL prompt.
-    task.params["allow_open"] = True
+    # Agent clicks Open Account → app confirmation page → human clicks Yes, Confirm.
 
     print(f"[open_account] creating {account} named {name} ({use})")
     member_id = current_member_id()
     artifact = find_artifact_by_id(OPEN_ACCOUNT, member_id)
     use_stored = (not force_discovery_for(OPEN_ACCOUNT)) and _artifact_has_open_click(artifact)
 
-    def _finish(logger: RunLogger, answer: str, error: str | None = None) -> None:
+    async def _finish(logger: RunLogger, answer: str, error: str | None = None) -> None:
         if own_run:
+            try:
+                await logger.capture_dom_outcome(
+                    browser_manager.page,
+                    task_kind="open_account",
+                    account=account,
+                )
+            except Exception:
+                pass
             logger.finish(
                 answer=answer,
                 error=error,
@@ -140,32 +136,36 @@ async def run_open_account(
                 browser_manager,
                 logger,
                 skip_auth=True,
-                context={"allow_open": True},
+                context={},
             )
         except Exception as exc:
-            _finish(logger, str(exc), error=str(exc))
+            await _finish(logger, str(exc), error=str(exc))
             raise
         if result.get("status") == "replayed":
             answer = _normalize_answer(
                 account, name, use, str(result.get("answer") or "")
             )
-            _finish(logger, answer)
+            await _finish(logger, answer)
             return answer
         if result.get("status") == "guardrail_blocked":
             answer = str(result.get("answer") or result.get("error") or "")
-            _finish(logger, answer)
+            await _finish(logger, answer)
             return answer
         error = str(result.get("error") or result.get("status") or "UI changed")
         if not allow_discovery_fallback():
             print(f"[replay] failed: {error}; discovery fallback disabled")
-            _finish(logger, error, error=error)
+            await _finish(logger, error, error=error)
             return error
         print(f"[replay] failed: {error}; falling back to LLM discovery")
 
     if force_replay():
         msg = f"No replayable {OPEN_ACCOUNT} operator for {member_id}."
         print(f"[replay] {msg}")
-        _finish(logger if logger is not None else RunLogger("replay", task.goal), msg, error=msg)
+        await _finish(
+            logger if logger is not None else RunLogger("replay", task.goal),
+            msg,
+            error=msg,
+        )
         return msg
 
     if own_run or logger is None:
@@ -179,11 +179,11 @@ async def run_open_account(
             logger,
             finish_run=False,
             task_kind="open_account",
-            allow_open=True,
+            allow_open=False,
         )
         answer = _normalize_answer(account, name, use, answer)
-        _finish(logger, answer)
+        await _finish(logger, answer)
         return answer
     except Exception as exc:
-        _finish(logger, str(exc), error=str(exc))
+        await _finish(logger, str(exc), error=str(exc))
         raise

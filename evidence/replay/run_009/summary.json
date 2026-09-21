@@ -1,0 +1,13 @@
+{
+  "run_id": "run_009",
+  "model": null,
+  "model_turns": 0,
+  "retries": 0,
+  "started_at": "2026-09-21T16:53:28Z",
+  "ended_at": "2026-09-21T16:53:32Z",
+  "status": "pass",
+  "outcome": "Balance retrieved",
+  "outcome_code": "balance_retrieved",
+  "outcome_source": "explicit",
+  "final_response": "Your checking account balance is $15,301.50."
+}

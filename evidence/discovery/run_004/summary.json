@@ -1,9 +1,13 @@
 {
   "run_id": "run_004",
-  "model": "openai/gpt-oss-20b",
-  "model_turns": 3,
+  "model": null,
+  "model_turns": 0,
   "retries": 0,
-  "started_at": "2026-09-20T22:48:53Z",
-  "ended_at": "2026-09-20T22:49:17Z",
-  "final_response": "Savings account created successfully (Travel Fund for, Personal)."
+  "started_at": "2026-09-21T16:39:49Z",
+  "ended_at": "2026-09-21T16:40:04Z",
+  "status": "pass",
+  "outcome": "Account opened",
+  "outcome_code": "account_opened",
+  "outcome_source": "explicit",
+  "final_response": "Savings account created successfully (Travel Fund, Personal)."
 }

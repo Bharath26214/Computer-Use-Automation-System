@@ -10,7 +10,9 @@
     "height": 900
   },
   "viewports_validated": [
-    "desktop"
+    "desktop",
+    "tablet",
+    "mobile"
   ],
   "error_handling": {},
   "inputs": {

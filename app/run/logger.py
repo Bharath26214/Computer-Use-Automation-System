@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from app.run.outcome import classify_run
+from app.run.outcome import resolve_outcome
 
 ROOT = Path(__file__).resolve().parents[2]
 RUNS_DIR = ROOT / "evidence"
@@ -117,6 +117,10 @@ class RunLogger:
         self._retries = 0
         self._final_response: str | None = None
         self._transfer_body: str | None = None
+        self._outcome_code: str | None = None
+        self._outcome_source: str | None = None
+        self._outcome_evidence: dict[str, Any] = {}
+        self._dom_signals: dict[str, Any] = {}
         used = list(operators_used or [])
         if artifact_used and artifact_used not in used:
             used.append(artifact_used)
@@ -138,6 +142,9 @@ class RunLogger:
             "ended_at": None,
             "status": "running",
             "outcome": None,
+            "outcome_code": None,
+            "outcome_source": None,
+            "outcome_evidence": None,
             "llm_used": False,
             "llm_model": None,
             "model_turns": 0,
@@ -208,6 +215,51 @@ class RunLogger:
         payload["risk"] = classify_action_risk(action).value
         self.event(**payload)
 
+    def note_outcome(
+        self,
+        code: str,
+        *,
+        source: str,
+        evidence: dict[str, Any] | None = None,
+    ) -> None:
+        """Record a structured outcome from guardrail / DOM / HITL evidence."""
+        self._outcome_code = code
+        self._outcome_source = source
+        self._outcome_evidence = dict(evidence or {})
+        self.meta["outcome_code"] = code
+        self.meta["outcome_source"] = source
+        self.meta["outcome_evidence"] = self._outcome_evidence
+        self.event(
+            type="outcome",
+            outcome_code=code,
+            outcome_source=source,
+            evidence=self._outcome_evidence or None,
+        )
+        self._write_meta()
+
+    def note_dom_signals(self, signals: dict[str, Any] | None) -> None:
+        if not signals:
+            return
+        self._dom_signals = dict(signals)
+        self.meta["dom_signals"] = self._dom_signals
+        self._write_meta()
+
+    async def capture_dom_outcome(
+        self,
+        page,
+        *,
+        task_kind: str | None = None,
+        account: str | None = None,
+    ) -> dict[str, Any]:
+        """Probe the bank UI and store signals for resolve_outcome."""
+        from app.run.evidence import observe_dom_signals
+
+        signals = await observe_dom_signals(
+            page, task_kind=task_kind, account=account
+        )
+        self.note_dom_signals(signals)
+        return signals
+
     def log_guardrail(self, decision) -> None:
         """Persist guardrail evaluation into events.jsonl + run.json (no separate jsonl)."""
         audit = decision.to_audit() if hasattr(decision, "to_audit") else dict(decision)
@@ -237,6 +289,36 @@ class RunLogger:
             }
         )
         self.meta["guardrail_audit"] = trail
+
+        # Blocking / denied rules are outcome facts — not answer text.
+        from app.run.outcome import code_from_rule
+
+        decision_value = str(
+            audit.get("decision") or audit.get("guardrail_decision") or ""
+        ).lower()
+        status_value = str(audit.get("status") or "").lower()
+        rule = audit.get("rule")
+        if (
+            decision_value in {"block", "blocked"}
+            or status_value in {"blocked", "block"}
+            or str(rule or "") in {
+                "hitl_denied",
+                "hitl_timeout",
+                "insufficient_funds",
+                "transfer_account_not_found",
+                "create_account_exists",
+                "delete_account_not_exist",
+            }
+        ):
+            details = dict(audit.get("details") or {})
+            details.setdefault("message", audit.get("message"))
+            code = code_from_rule(str(rule) if rule else None, details=details)
+            if code:
+                self.note_outcome(
+                    code,
+                    source="guardrail",
+                    evidence={"rule": rule, **details},
+                )
         self._write_meta()
 
     def log_error_event(self, event) -> None:
@@ -246,8 +328,21 @@ class RunLogger:
         trail = list(self.meta.get("error_events") or [])
         trail.append(payload)
         self.meta["error_events"] = trail
-        self._write_meta()
 
+        status = str(payload.get("status") or "").lower()
+        details = payload.get("details") or {}
+        reason = str(details.get("reason") or "").lower()
+        if status in {"rejected", "terminal"} or reason == "hitl_timeout":
+            from app.run.outcome import code_from_rule
+
+            rule = "hitl_timeout" if reason == "hitl_timeout" else "hitl_denied"
+            code = code_from_rule(rule) or "human_did_not_confirm"
+            self.note_outcome(
+                code,
+                source="hitl",
+                evidence={"status": status, "reason": reason or status},
+            )
+        self._write_meta()
     def save_checkpoint_snapshot(
         self,
         *,
@@ -432,52 +527,64 @@ class RunLogger:
         error: str | None = None,
         *,
         outcome: str | None = None,
+        outcome_code: str | None = None,
         answer: str | None = None,
         task_kind: str | None = None,
     ) -> None:
         if artifact_created:
             self.note_operator(artifact_created, created=True, mode="discovery")
 
-        auto_status, auto_outcome = classify_run(
+        resolved = resolve_outcome(
             task_kind=task_kind,
             answer=answer,
             error=error,
+            outcome_code=outcome_code or self._outcome_code,
+            guardrail_audit=list(self.meta.get("guardrail_audit") or []),
+            error_events=list(self.meta.get("error_events") or []),
+            dom_signals=dict(self._dom_signals or self.meta.get("dom_signals") or {}),
         )
 
-        if status is not None and outcome is not None:
-            final_status = "pass" if status == "success" else status
-            if final_status == "cancelled":
-                final_status = "failed"
-            final_outcome = outcome
-        elif status is not None:
-            if status in {"success", "pass"}:
-                final_status = auto_status if answer or error else "pass"
-                final_outcome = outcome or auto_outcome
-            elif status == "cancelled":
-                final_status = "failed"
-                final_outcome = outcome or "Human did not confirm"
-            elif status == "blocked":
-                final_status = "failed"
-                final_outcome = outcome or "UI changed"
-            elif status == "failed":
-                final_status = "failed"
-                final_outcome = outcome or auto_outcome
-            else:
-                final_status = status
-                final_outcome = outcome or auto_outcome
-        else:
-            final_status = auto_status
-            final_outcome = outcome or auto_outcome
+        from app.run.outcome import label_for, status_for
+
+        # Evidence-backed resolution is primary. Caller status/outcome are overrides
+        # only when they do not fight structured codes.
+        final_code = outcome_code or self._outcome_code or resolved.code
+        final_source = (
+            "explicit"
+            if outcome_code
+            else (self._outcome_source or resolved.source)
+        )
+        final_evidence = dict(resolved.evidence or self._outcome_evidence or {})
+        final_outcome = label_for(final_code) if final_code else (outcome or resolved.label)
+        final_status = status_for(final_code) if final_code else resolved.status
+
+        if status in {"cancelled"}:
+            final_status = "failed"
+            final_code = final_code or "human_did_not_confirm"
+            final_outcome = outcome or label_for("human_did_not_confirm")
+            final_source = final_source or "explicit"
+        elif status == "failed" and resolved.source == "answer_heuristic" and not self._outcome_code:
+            # Caller forced failure without structured evidence.
+            final_status = "failed"
+            if outcome:
+                final_outcome = outcome
+        elif status in {"success", "pass"} and resolved.source == "answer_heuristic" and not (
+            outcome_code or self._outcome_code
+        ):
+            # Keep pass when caller says success and we only have heuristic.
+            final_status = "pass" if not error else final_status
+            if outcome:
+                final_outcome = outcome
 
         if final_status == "success":
             final_status = "pass"
-        if final_status == "cancelled":
-            final_status = "failed"
-            final_outcome = final_outcome or "Human did not confirm"
 
         self.meta["ended_at"] = utc_now()
         self.meta["status"] = final_status
         self.meta["outcome"] = final_outcome
+        self.meta["outcome_code"] = final_code
+        self.meta["outcome_source"] = final_source
+        self.meta["outcome_evidence"] = final_evidence
         self.meta["llm_used"] = bool(self.meta.get("llm_used") or self._llm_used)
         self.meta["model_turns"] = self._model_turns
         self.meta["retries"] = self._retries
@@ -492,8 +599,10 @@ class RunLogger:
         self._refresh_transfer_status(final_status, final_outcome)
         self._write_meta()
         self._write_summary()
-        print(f"[run] {self.kind} {self.run_id} {final_status} ({final_outcome})")
-
+        print(
+            f"[run] {self.kind} {self.run_id} {final_status} "
+            f"({final_outcome}; code={final_code}; source={final_source})"
+        )
     def _write_summary(self) -> None:
         """Compact per-run summary for operators and evaluation."""
         summary = {
@@ -503,6 +612,10 @@ class RunLogger:
             "retries": self._retries,
             "started_at": self.meta.get("started_at"),
             "ended_at": self.meta.get("ended_at"),
+            "status": self.meta.get("status"),
+            "outcome": self.meta.get("outcome"),
+            "outcome_code": self.meta.get("outcome_code"),
+            "outcome_source": self.meta.get("outcome_source"),
             "final_response": self._final_response
             or self.meta.get("final_response")
             or self.meta.get("error"),

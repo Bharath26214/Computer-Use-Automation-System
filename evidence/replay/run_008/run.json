@@ -1,0 +1,62 @@
+{
+  "run_id": "run_008",
+  "type": "replay",
+  "goal": "Transfer 99999 from checking to savings",
+  "target_url": "http://localhost:5173/login",
+  "started_at": "2026-09-21T16:53:16Z",
+  "ended_at": "2026-09-21T16:53:21Z",
+  "status": "pass",
+  "outcome": "Insufficient funds",
+  "outcome_code": "insufficient_funds",
+  "outcome_source": "explicit",
+  "outcome_evidence": {
+    "outcome_code": "insufficient_funds"
+  },
+  "llm_used": false,
+  "llm_model": null,
+  "model_turns": 0,
+  "retries": 0,
+  "artifact_sequence": [],
+  "operators_created": [],
+  "operators_used": [],
+  "artifact_created": null,
+  "artifact_used": null,
+  "guardrail_audit": [
+    {
+      "step": 1,
+      "action": "click",
+      "target": "Review Transfer",
+      "status": "evaluated",
+      "risk": "high",
+      "guardrail_decision": "block",
+      "rule": "insufficient_funds",
+      "message": "Insufficient funds in Checking account (available $15,301.50, requested $99,999.00). Transfer was not completed."
+    }
+  ],
+  "error_events": [],
+  "checkpoints": null,
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900,
+    "locator_policy": "dom_only"
+  },
+  "dom_signals": {
+    "checking_present": true,
+    "savings_present": true,
+    "both_accounts_present": true
+  },
+  "task_results": [
+    {
+      "status": "pass",
+      "outcome": "Insufficient funds",
+      "outcome_code": "insufficient_funds",
+      "outcome_source": "explicit",
+      "outcome_evidence": {
+        "outcome_code": "insufficient_funds"
+      },
+      "artifact": "transfer_funds"
+    }
+  ],
+  "final_response": "Insufficient funds in Checking account (available $15,301.50, requested $99,999.00). Transfer was not completed."
+}

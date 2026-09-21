@@ -1,0 +1,13 @@
+{
+  "run_id": "run_002",
+  "model": null,
+  "model_turns": 0,
+  "retries": 0,
+  "started_at": "2026-09-21T16:50:24Z",
+  "ended_at": "2026-09-21T16:50:42Z",
+  "status": "pass",
+  "outcome": "Transfer completed",
+  "outcome_code": "transfer_completed",
+  "outcome_source": "explicit",
+  "final_response": "**Status:** success\n\n| Date | Description | Account | Amount | Type | Status |\n| --- | --- | --- | ---: | --- | --- |\n| 2026-09-21 | Transfer to Savings | Checking | -$100.00 | Debit | Completed |\n| 2026-09-21 | Transfer from Checking | Savings | +$100.00 | Credit | Completed |\n"
+}

@@ -1,0 +1,168 @@
+{
+  "run_id": "run_006",
+  "type": "replay",
+  "goal": "Transfer 6000 from checking to savings",
+  "target_url": "http://localhost:5173/login",
+  "started_at": "2026-09-21T16:51:58Z",
+  "ended_at": "2026-09-21T16:52:17Z",
+  "status": "pass",
+  "outcome": "Transfer completed",
+  "outcome_code": "transfer_completed",
+  "outcome_source": "explicit",
+  "outcome_evidence": {
+    "outcome_code": "transfer_completed"
+  },
+  "llm_used": false,
+  "llm_model": null,
+  "model_turns": 0,
+  "retries": 0,
+  "artifact_sequence": [
+    {
+      "order": 1,
+      "artifact": "transfer_funds/v1",
+      "mode": "replay",
+      "created": false
+    }
+  ],
+  "operators_created": [],
+  "operators_used": [
+    "transfer_funds/v1"
+  ],
+  "artifact_created": null,
+  "artifact_used": "transfer_funds/v1",
+  "guardrail_audit": [
+    {
+      "step": 1,
+      "action": "click",
+      "target": "Transfer Money",
+      "status": "allowed",
+      "risk": "medium",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    },
+    {
+      "step": 2,
+      "action": "fill",
+      "target": "From Account",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 3,
+      "action": "fill",
+      "target": "To Account",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 4,
+      "action": "fill",
+      "target": "Amount",
+      "status": "allowed",
+      "risk": "medium",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 5,
+      "action": "click",
+      "target": "Review Transfer",
+      "status": "allowed",
+      "risk": "medium",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    },
+    {
+      "step": 6,
+      "action": "click",
+      "target": "Confirm Transfer",
+      "status": "require_approval",
+      "risk": "high",
+      "guardrail_decision": "require_approval",
+      "rule": "hitl_required",
+      "message": "Confirmation page open (risk=high): click \u201cConfirm Transfer\u201d in the browser, then type resume."
+    },
+    {
+      "step": 7,
+      "action": "click",
+      "target": "Confirm Transfer",
+      "status": "allowed",
+      "risk": "high",
+      "guardrail_decision": "allow",
+      "rule": "hitl_approved",
+      "message": "Auto-yes: agent will click \u201cConfirm Transfer\u201d"
+    },
+    {
+      "step": 8,
+      "action": "click",
+      "target": "Transactions",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/transfer)"
+    }
+  ],
+  "error_events": [
+    {
+      "kind": "human_intervention",
+      "message": "Confirmation page open (risk=high): click \u201cConfirm Transfer\u201d in the browser, then type resume.",
+      "status": "retrying",
+      "action": "click",
+      "target": "Confirm Transfer",
+      "expected_page": null,
+      "actual_page": null,
+      "attempt": 0,
+      "delay_sec": null,
+      "details": {}
+    },
+    {
+      "kind": "human_intervention",
+      "message": "Auto-yes: agent will click \u201cConfirm Transfer\u201d",
+      "status": "approved",
+      "action": "click",
+      "target": "Confirm Transfer",
+      "expected_page": null,
+      "actual_page": null,
+      "attempt": 0,
+      "delay_sec": null,
+      "details": {
+        "confirmation": "auto_yes",
+        "handoff": "agent_clicks"
+      }
+    }
+  ],
+  "checkpoints": null,
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900,
+    "locator_policy": "dom_only"
+  },
+  "screenshots": [
+    "screenshots/success_transfer_done.png"
+  ],
+  "transfer": "transfer.md",
+  "task_results": [
+    {
+      "status": "pass",
+      "outcome": "Transfer completed",
+      "outcome_code": "transfer_completed",
+      "outcome_source": "answer_heuristic",
+      "outcome_evidence": {
+        "matched": "transfer_rows"
+      },
+      "artifact": "transfer_funds"
+    }
+  ],
+  "final_response": "**Status:** success\n\n| Date | Description | Account | Amount | Type | Status |\n| --- | --- | --- | ---: | --- | --- |\n| 2026-09-21 | Transfer to Savings | Checking | -$6,000.00 | Debit | Completed |\n| 2026-09-21 | Transfer from Checking | Savings | +$6,000.00 | Credit | Completed |\n"
+}

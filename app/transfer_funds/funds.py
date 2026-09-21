@@ -19,7 +19,6 @@ from app.browser.accounts import (
 from app.browser.manager import BrowserManager
 from app.guardrails.business import preflight_transfer_business
 from app.plan import TRANSFER_FUNDS, PlannedTask, parse_transfer_goal
-from app.run.confirm import ConfirmationTimeout, ask_yes_no
 from app.run.logger import RunLogger
 
 LARGE_TRANSFER_THRESHOLD = 5000.0
@@ -203,7 +202,10 @@ def _match_transfer_rows(
 
 
 def _approve_large_transfer(task: PlannedTask) -> str | None:
-    """Ask for human approval when amount > $5000 unless delete flow already approved."""
+    """
+    Large transfers (> $5000): agent opens Transfer Review, then you click
+    Confirm Transfer on the app confirmation page (type resume after).
+    """
     if task.params.get("skip_large_transfer_approval"):
         return None
     amount = parse_transfer_amount(task.params.get("amount"))
@@ -212,14 +214,10 @@ def _approve_large_transfer(task: PlannedTask) -> str | None:
     source = task.params.get("from_account") or "Savings"
     destination = task.params.get("to_account") or "Checking"
     print(
-        f"Transfer of ${amount:,.2f} from {source} to {destination} exceeds "
-        f"${LARGE_TRANSFER_THRESHOLD:,.0f} and requires human approval. Continue? (yes/no)"
+        f"[transfer_funds] ${amount:,.2f} from {source} to {destination} exceeds "
+        f"${LARGE_TRANSFER_THRESHOLD:,.0f} — after Review Transfer, click "
+        f"Confirm Transfer on the app page, then type resume."
     )
-    try:
-        if not ask_yes_no("> "):
-            return "Transfer cancelled: human approval was not given."
-    except ConfirmationTimeout as exc:
-        return str(exc)
     return None
 
 
@@ -228,8 +226,10 @@ async def _preflight_transfer(
     browser_manager: BrowserManager,
     skip_auth: bool,
     run_logger: RunLogger | None = None,
-) -> str | None:
+):
     """Business edge cases via the guardrail engine before Transfer UI."""
+    from app.guardrails.types import GuardrailDecision
+
     await ensure_signed_in(browser_manager, skip_auth=skip_auth, run_logger=run_logger)
     await ensure_dashboard(browser_manager)
 
@@ -243,7 +243,7 @@ async def _preflight_transfer(
         amount=amount,
     )
     if decision is not None and decision.blocked():
-        return decision.message
+        return decision
     return None
 
 
@@ -301,31 +301,30 @@ async def run_transfer_funds(
     else:
         own_finish = False
 
-    blocked = await _preflight_transfer(task, browser_manager, skip_auth, run_logger=logger)
-    if blocked:
-        from app.guardrails.types import GuardrailDecision, HITLState, RiskLevel
-
-        decision = GuardrailDecision(
-            decision=HITLState.BLOCK,
-            risk=RiskLevel.HIGH,
-            rule="insufficient_funds"
-            if "insufficient funds" in blocked.lower()
-            else "transfer_account_not_found",
-            message=blocked,
-            status="blocked",
-            action="preflight",
-            target="transfer_funds",
-        )
+    decision = await _preflight_transfer(task, browser_manager, skip_auth, run_logger=logger)
+    if decision is not None:
         logger.log_guardrail(decision)
+        # Capture DOM corroboration when the form already shows the alert.
+        try:
+            await logger.capture_dom_outcome(
+                browser_manager.page,
+                task_kind="transfer",
+            )
+        except Exception:
+            pass
         if own_run or own_finish:
-            logger.finish(answer=blocked, task_kind="transfer")
-        return blocked
+            logger.finish(
+                answer=decision.message,
+                task_kind="transfer",
+                outcome_code=None,  # already noted from guardrail rule
+            )
+        return decision.message
 
     denied = _approve_large_transfer(task)
     if denied:
         from app.guardrails.types import GuardrailDecision, HITLState, RiskLevel
 
-        decision = GuardrailDecision(
+        hitl_decision = GuardrailDecision(
             decision=HITLState.BLOCK,
             risk=RiskLevel.HIGH,
             rule="hitl_denied",
@@ -334,7 +333,7 @@ async def run_transfer_funds(
             action="preflight",
             target="large_transfer",
         )
-        logger.log_guardrail(decision)
+        logger.log_guardrail(hitl_decision)
         if own_run or own_finish:
             logger.finish(answer=denied, error=denied, task_kind="transfer")
         return denied
@@ -354,8 +353,14 @@ async def run_transfer_funds(
     member_id = current_member_id()
     artifact = find_artifact_by_id(TRANSFER_FUNDS, member_id)
 
-    def _finish(log: RunLogger, answer: str, error: str | None = None) -> None:
+    async def _finish(log: RunLogger, answer: str, error: str | None = None) -> None:
         if own_run or own_finish:
+            try:
+                await log.capture_dom_outcome(
+                    browser_manager.page, task_kind="transfer"
+                )
+            except Exception:
+                pass
             log.finish(
                 answer=answer,
                 error=error,
@@ -377,30 +382,30 @@ async def run_transfer_funds(
                 context=transfer_context,
             )
         except Exception as exc:
-            _finish(logger, str(exc), error=str(exc))
+            await _finish(logger, str(exc), error=str(exc))
             raise
         if result.get("status") == "replayed":
             answer = await finalize_transfer(task.goal, browser_manager, logger)
-            _finish(logger, answer)
+            await _finish(logger, answer)
             return answer
         if result.get("status") == "guardrail_blocked":
             answer = str(result.get("answer") or result.get("error") or "")
-            _finish(logger, answer)
+            await _finish(logger, answer)
             return answer
         error = str(result.get("error") or result.get("status") or "UI changed")
         if "insufficient funds" in error.lower():
-            _finish(logger, error)
+            await _finish(logger, error)
             return error
         if not allow_discovery_fallback():
             print(f"[replay] failed: {error}; discovery fallback disabled")
-            _finish(logger, error, error=error)
+            await _finish(logger, error, error=error)
             return error
         print(f"[replay] failed: {error}; falling back to LLM discovery")
 
     if force_replay():
         msg = f"No replayable {TRANSFER_FUNDS} operator for {member_id}."
         print(f"[replay] {msg}")
-        _finish(logger, msg, error=msg)
+        await _finish(logger, msg, error=msg)
         return msg
 
     from app.agent.discover import run_discovery
@@ -421,10 +426,10 @@ async def run_transfer_funds(
                     answer = await finalize_transfer(task.goal, browser_manager, logger)
                 except Exception:
                     pass
-            _finish(logger, answer)
+            await _finish(logger, answer)
             return answer
-        _finish(logger, answer)
+        await _finish(logger, answer)
         return answer
     except Exception as exc:
-        _finish(logger, str(exc), error=str(exc))
+        await _finish(logger, str(exc), error=str(exc))
         raise

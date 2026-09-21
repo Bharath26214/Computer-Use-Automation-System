@@ -1,9 +1,13 @@
 {
   "run_id": "run_011",
-  "model": "openai/gpt-oss-20b",
-  "model_turns": 1,
-  "retries": 1,
-  "started_at": "2026-09-20T22:52:51Z",
-  "ended_at": "2026-09-20T22:53:36Z",
-  "final_response": "Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organization `org_01k2q5tf8af56ac4sgxdngbf3b` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199257, Requested 1216. Please try again in 3m24.335999999s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}"
+  "model": null,
+  "model_turns": 0,
+  "retries": 0,
+  "started_at": "2026-09-21T16:48:09Z",
+  "ended_at": "2026-09-21T16:49:10Z",
+  "status": "pass",
+  "outcome": "Account deleted",
+  "outcome_code": "account_deleted",
+  "outcome_source": "explicit",
+  "final_response": "Your savings account balance is $12,800.00.\n**Status:** success\n\n| Date | Description | Account | Amount | Type | Status |\n| --- | --- | --- | ---: | --- | --- |\n| 2026-09-21 | Transfer to Checking | Savings | -$12,800.00 | Debit | Completed |\n| 2026-09-21 | Transfer from Savings | Checking | +$12,800.00 | Credit | Completed |\n\nSavings account deleted."
 }

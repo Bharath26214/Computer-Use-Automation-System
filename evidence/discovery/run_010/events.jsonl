@@ -38,11 +38,6 @@
 {"step": 38, "type": "click", "target": "Transactions", "risk": "low"}
 {"step": 39, "type": "verify", "checkpoint": "transactions_visible", "status": "passed"}
 {"step": 40, "type": "observe", "url": "http://localhost:5173/transactions", "title": "Atlas Bank"}
-{"step": 41, "type": "llm_decision", "action": "read", "target": "transaction-table", "turn": 8}
-{"step": 42, "type": "guardrail", "action": "read", "target": "transaction-table", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/transactions)", "expected_page": "/transactions", "actual_page": "http://localhost:5173/transactions"}
-{"step": 43, "type": "read", "target": "transaction-table", "risk": "low"}
-{"step": 44, "type": "verify", "checkpoint": "balance_visible", "status": "passed"}
-{"step": 45, "type": "observe", "url": "http://localhost:5173/transactions", "title": "Atlas Bank"}
-{"step": 46, "type": "llm_decision", "action": "finish", "turn": 9}
-{"step": 47, "type": "guardrail", "action": "finish", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "terminal_action", "message": "Terminal action allowed"}
-{"step": 48, "type": "task_result", "operator": "transfer_funds", "status": "pass", "outcome": "Transfer completed"}
+{"step": 41, "type": "llm_decision", "action": "finish", "turn": 8}
+{"step": 42, "type": "guardrail", "action": "finish", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "terminal_action", "message": "Terminal action allowed"}
+{"step": 43, "type": "task_result", "operator": "transfer_funds", "status": "pass", "outcome": "Transfer completed", "outcome_code": "transfer_completed", "outcome_source": "answer_heuristic"}

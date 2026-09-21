@@ -11,7 +11,7 @@ type AccountCardProps = {
 export function AccountCard({ account, testId, onDelete }: AccountCardProps) {
   const product = productName(account)
   const slug = product.toLowerCase()
-  const canDelete = roundMoney(account.balance) === 0
+  const hasBalance = roundMoney(account.balance) > 0
 
   return (
     <article
@@ -31,22 +31,21 @@ export function AccountCard({ account, testId, onDelete }: AccountCardProps) {
           <button
             type="button"
             data-testid={`delete-${slug}-account`}
-            disabled={!canDelete}
             title={
-              canDelete
-                ? `Delete ${product} account`
-                : `${product} cannot be deleted with a nonzero balance.`
+              hasBalance
+                ? `Delete ${product} account (transfer remaining balance first)`
+                : `Delete ${product} account`
             }
             onClick={onDelete}
-            className="rounded-md border border-red-300 px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:hover:bg-transparent"
+            className="rounded-md border border-red-300 px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-50"
           >
             Delete {product} Account
           </button>
-          {canDelete ? null : (
+          {hasBalance ? (
             <p className="mt-2 text-xs text-slate-500">
-              Transfer the remaining balance before this account can be deleted.
+              A nonzero balance must be transferred before this account can be removed.
             </p>
-          )}
+          ) : null}
         </div>
       ) : null}
     </article>

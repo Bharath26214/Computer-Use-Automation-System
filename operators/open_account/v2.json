@@ -1,0 +1,142 @@
+{
+  "artifact_id": "open_account",
+  "version": 2,
+  "title": "Open account",
+  "description": "Sign in and open a Checking or Savings product with a nickname and use. Fails when both products already exist for the member.",
+  "locator_policy": "dom_only",
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900
+  },
+  "viewports_validated": [
+    "desktop"
+  ],
+  "error_handling": {
+    "page_not_found": {
+      "description": "Target route returned 404 / page not found.",
+      "policy": "one_retry",
+      "delays_sec": [
+        1
+      ],
+      "max_attempts": 1,
+      "recorded_occurrences": 1,
+      "last_message": "Handled page_not_found for member casey404",
+      "last_status": "recovered"
+    }
+  },
+  "inputs": {
+    "member_id": {
+      "type": "string",
+      "required": true,
+      "description": "Opaque member login id: letters followed by exactly three digits. Do not store real personal names in artifacts; supply this at invoke time.",
+      "pattern": "^[A-Za-z]+\\d{3}$",
+      "example": "alex123"
+    },
+    "account": {
+      "type": "string",
+      "required": true,
+      "description": "Product to open.",
+      "enum": [
+        "Checking",
+        "Savings"
+      ],
+      "example": "Checking"
+    },
+    "account_name": {
+      "type": "string",
+      "required": false,
+      "description": "Nickname for the new account. Defaults to the product type (Checking or Savings) when omitted.",
+      "example": "Savings"
+    },
+    "account_use": {
+      "type": "string",
+      "required": false,
+      "description": "Personal or Business use. Defaults to Personal.",
+      "enum": [
+        "Personal",
+        "Business"
+      ],
+      "example": "Personal"
+    },
+    "bank_url": {
+      "type": "string",
+      "required": false,
+      "description": "Atlas Bank login URL for this environment.",
+      "example": "http://localhost:5173/login"
+    }
+  },
+  "outputs": {
+    "account_status": {
+      "type": "string",
+      "description": "Opened / already-exists / refused message.",
+      "example": "Checking account created successfully."
+    }
+  },
+  "steps": [
+    {
+      "id": "step_1",
+      "type": "fill",
+      "description": "Enter account name \u2014 fill Account name",
+      "risk": "low",
+      "target": {
+        "strategy": "label",
+        "value": "Account name",
+        "robustness": "Locate the control by accessible label text shown beside the field.",
+        "interaction": "dom"
+      },
+      "value": "{{account_name}}"
+    },
+    {
+      "id": "step_2",
+      "type": "fill",
+      "description": "Select account use \u2014 fill Use",
+      "risk": "low",
+      "target": {
+        "strategy": "label",
+        "value": "Use",
+        "robustness": "Locate the control by accessible label text shown beside the field.",
+        "interaction": "dom"
+      },
+      "value": "{{account_use}}"
+    },
+    {
+      "id": "step_3",
+      "type": "click",
+      "description": "Open account \u2014 click Open {{account}} Account",
+      "risk": "high",
+      "target": {
+        "strategy": "role",
+        "role": "button",
+        "name": "Open {{account}} Account",
+        "robustness": "Locate by ARIA role + accessible name so the control remains findable if layout shifts but semantics stay the same.",
+        "interaction": "dom"
+      }
+    }
+  ],
+  "success_conditions": [
+    {
+      "id": "member_details_visible",
+      "description": "Signed-in member chrome is visible on the page.",
+      "required": true
+    },
+    {
+      "id": "checking_balance_visible",
+      "description": "Checking account balance card/text is present.",
+      "required": true
+    },
+    {
+      "id": "savings_balance_visible",
+      "description": "Savings account balance card/text is present.",
+      "required": true
+    },
+    {
+      "id": "account_opened",
+      "description": "The requested product account card is visible after open.",
+      "required": true
+    }
+  ],
+  "query_signatures": [
+    "open a savings account named travel fund use personal"
+  ]
+}

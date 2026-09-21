@@ -23,23 +23,19 @@ from app.lookup_balance import run_lookup_balance
 from app.open_account import run_open_account
 from app.plan import plan_query
 from app.run.logger import RunLogger
-from app.run.outcome import classify_run, summarize_answers
+from app.run.outcome import (
+    TERMINAL_PASS_CODES,
+    code_from_label,
+    resolve_outcome,
+    summarize_task_results,
+)
 from app.transfer_funds import run_transfer_funds
 
 
 def task_succeeded(task, answer: str) -> bool:
     """Return True when the step reached a valid business conclusion (pass)."""
-    status, _outcome = classify_run(task_kind=task.kind, answer=answer)
-    return status == "pass"
-
-
-# Pass outcomes that still end a multi-step plan (do not continue to later tasks).
-TERMINAL_PASS_OUTCOMES = {
-    "Insufficient funds",
-    "Account not found",
-    "Checking account not found",
-    "Savings account not found",
-}
+    result = resolve_outcome(task_kind=task.kind, answer=answer)
+    return result.status == "pass"
 
 
 def should_stop_workflow(task, result: dict) -> bool:
@@ -49,8 +45,8 @@ def should_stop_workflow(task, result: dict) -> bool:
     """
     if result.get("status") != "pass":
         return True
-    outcome = result.get("outcome") or ""
-    if task.kind == "transfer" and outcome in TERMINAL_PASS_OUTCOMES:
+    code = result.get("outcome_code") or code_from_label(result.get("outcome"))
+    if task.kind == "transfer" and code in TERMINAL_PASS_CODES:
         return True
     return False
 
@@ -198,7 +194,6 @@ async def run_task(
         logger,
         finish_run=own_run,
         task_kind=task.kind,
-        allow_delete=task.kind == "delete_account",
     )
 
 
@@ -221,10 +216,32 @@ def format_balance_answer(task, answer: str) -> str:
     return f"Your {account} account balance is {match.group(1).replace(' ', '')}."
 
 
-def task_outcome(task, answer: str) -> dict:
-    """Map a step answer to {status, outcome} for run.json."""
-    status, outcome = classify_run(task_kind=task.kind, answer=answer)
-    return {"status": status, "outcome": outcome, "artifact": task.artifact_id}
+def task_outcome(task, answer: str, run_logger: RunLogger | None = None) -> dict:
+    """Map a step answer to structured outcome for run.json."""
+    resolved = resolve_outcome(
+        task_kind=task.kind,
+        answer=answer,
+        outcome_code=(run_logger._outcome_code if run_logger else None),
+        guardrail_audit=(
+            list(run_logger.meta.get("guardrail_audit") or []) if run_logger else None
+        ),
+        error_events=(
+            list(run_logger.meta.get("error_events") or []) if run_logger else None
+        ),
+        dom_signals=(
+            dict(run_logger._dom_signals or run_logger.meta.get("dom_signals") or {})
+            if run_logger
+            else None
+        ),
+    )
+    return {
+        "status": resolved.status,
+        "outcome": resolved.label,
+        "outcome_code": resolved.code,
+        "outcome_source": resolved.source,
+        "outcome_evidence": resolved.evidence,
+        "artifact": task.artifact_id,
+    }
 
 
 async def run_query(query: str) -> str:
@@ -261,30 +278,38 @@ async def run_query(query: str) -> str:
             except Exception as exc:
                 message = str(exc)
                 answers.append(message)
-                result = classify_run(task_kind=task.kind, answer=message, error=message)
-                task_results.append(
-                    {
-                        "status": result[0],
-                        "outcome": result[1],
-                        "artifact": task.artifact_id,
-                    }
-                )
+                result = task_outcome(task, message, run_logger)
+                result["status"] = result.get("status") or "failed"
+                task_results.append(result)
                 run_logger.event(
                     type="task_result",
                     operator=task.artifact_id,
-                    status=result[0],
-                    outcome=result[1],
+                    status=result["status"],
+                    outcome=result["outcome"],
+                    outcome_code=result.get("outcome_code"),
+                    outcome_source=result.get("outcome_source"),
                 )
                 break
             answer = format_balance_answer(task, answer)
+            # Prefer page facts over answer prose when the browser is still open.
+            try:
+                await run_logger.capture_dom_outcome(
+                    browser_manager.page,
+                    task_kind=task.kind,
+                    account=str((task.params or {}).get("account") or "") or None,
+                )
+            except Exception:
+                pass
             answers.append(answer)
-            result = task_outcome(task, answer)
+            result = task_outcome(task, answer, run_logger)
             task_results.append(result)
             run_logger.event(
                 type="task_result",
                 operator=task.artifact_id,
                 status=result["status"],
                 outcome=result["outcome"],
+                outcome_code=result.get("outcome_code"),
+                outcome_source=result.get("outcome_source"),
             )
             if should_stop_workflow(task, result):
                 if index < len(tasks) - 1:
@@ -307,18 +332,24 @@ async def run_query(query: str) -> str:
                         )
                         answers.append(voided)
                 break
-        status, outcome = summarize_answers(task_results)
+        summary = summarize_task_results(task_results)
         run_logger.meta["task_results"] = task_results
         run_logger.finish(
-            status=status,
-            outcome=outcome,
+            status=summary.status,
+            outcome=summary.label,
+            outcome_code=summary.code,
             answer="\n".join(answers),
             task_kind=tasks[0].kind if tasks else None,
         )
         return "\n".join(part for part in answers if part)
     except Exception as exc:
-        status, outcome = classify_run(error=str(exc))
-        run_logger.finish(status=status, outcome=outcome, error=str(exc))
+        resolved = resolve_outcome(error=str(exc))
+        run_logger.finish(
+            status=resolved.status,
+            outcome=resolved.label,
+            outcome_code=resolved.code,
+            error=str(exc),
+        )
         raise
     finally:
         await browser_manager.close()
@@ -378,13 +409,18 @@ def main() -> None:
         "-y",
         "--yes",
         action="store_true",
-        help="Auto-answer every human confirmation prompt with yes (HITL).",
+        help=(
+            "Auto-confirm app handoffs: agent clicks Yes, Confirm / Confirm Transfer "
+            "for you (no browser click / resume). Production requires approved "
+            "operators (≥3 successes at ≥75%%); draft versions need interactive "
+            "replay or ATLAS_ALLOW_DRAFT_YES=1 (test harness)."
+        ),
     )
     parser.add_argument(
         "-n",
         "--no",
         action="store_true",
-        help="Auto-answer every human confirmation prompt with no (HITL).",
+        help="Auto-abort confirmation handoffs (cancel protected confirms).",
     )
     args = parser.parse_args()
     apply_cli_credentials(args.username)

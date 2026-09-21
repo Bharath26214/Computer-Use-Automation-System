@@ -3,10 +3,15 @@
   "type": "discovery",
   "goal": "Transfer 100 from checking to savings",
   "target_url": "http://localhost:5173/login",
-  "started_at": "2026-09-20T22:49:46Z",
-  "ended_at": "2026-09-20T22:50:34Z",
+  "started_at": "2026-09-21T16:44:22Z",
+  "ended_at": "2026-09-21T16:44:54Z",
   "status": "pass",
   "outcome": "Transfer completed",
+  "outcome_code": "transfer_completed",
+  "outcome_source": "explicit",
+  "outcome_evidence": {
+    "outcome_code": "transfer_completed"
+  },
   "llm_used": true,
   "llm_model": "openai/gpt-oss-20b",
   "model_turns": 9,
@@ -133,8 +138,13 @@
     {
       "status": "pass",
       "outcome": "Transfer completed",
+      "outcome_code": "transfer_completed",
+      "outcome_source": "answer_heuristic",
+      "outcome_evidence": {
+        "matched": "transfer_rows"
+      },
       "artifact": "transfer_funds"
     }
   ],
-  "final_response": "**Status:** success\n\n| Date | Description | Account | Amount | Type | Status |\n| --- | --- | --- | ---: | --- | --- |\n| 2026-09-20 | Transfer to Savings | Checking | -$100.00 | Debit | Completed |\n| 2026-09-20 | Transfer from Checking | Savings | +$100.00 | Credit | Completed |\n"
+  "final_response": "**Status:** success\n\n| Date | Description | Account | Amount | Type | Status |\n| --- | --- | --- | ---: | --- | --- |\n| 2026-09-21 | Transfer to Savings | Checking | -$100.00 | Debit | Completed |\n| 2026-09-21 | Transfer from Checking | Savings | +$100.00 | Credit | Completed |\n"
 }

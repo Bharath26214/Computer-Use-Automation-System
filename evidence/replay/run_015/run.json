@@ -1,0 +1,117 @@
+{
+  "run_id": "run_015",
+  "type": "replay",
+  "goal": "What is my checking account balance?",
+  "target_url": "http://localhost:5173/login",
+  "started_at": "2026-09-21T16:55:49Z",
+  "ended_at": "2026-09-21T16:56:00Z",
+  "status": "pass",
+  "outcome": "Balance retrieved",
+  "outcome_code": "balance_retrieved",
+  "outcome_source": "explicit",
+  "outcome_evidence": {
+    "outcome_code": "balance_retrieved"
+  },
+  "llm_used": false,
+  "llm_model": null,
+  "model_turns": 0,
+  "retries": 0,
+  "artifact_sequence": [
+    {
+      "order": 1,
+      "artifact": "lookup_balance/v3",
+      "mode": "replay",
+      "created": false
+    }
+  ],
+  "operators_created": [],
+  "operators_used": [
+    "lookup_balance/v3"
+  ],
+  "artifact_created": null,
+  "artifact_used": "lookup_balance/v3",
+  "guardrail_audit": [
+    {
+      "step": 1,
+      "action": "read",
+      "target": "checking-account",
+      "status": "allowed",
+      "risk": "low",
+      "guardrail_decision": "allow",
+      "rule": "pass",
+      "message": "UI page ok (/dashboard)"
+    }
+  ],
+  "error_events": [
+    {
+      "kind": "reloading",
+      "message": "Reloading detected \u2014 waiting 2s before retry 1/2",
+      "status": "retrying",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": null,
+      "attempt": 1,
+      "delay_sec": 2.0,
+      "details": {}
+    },
+    {
+      "kind": "reloading",
+      "message": "Reloading detected \u2014 waiting 5s before retry 2/2",
+      "status": "retrying",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": null,
+      "attempt": 2,
+      "delay_sec": 5.0,
+      "details": {}
+    },
+    {
+      "kind": "reloading",
+      "message": "Recovered after reload wait (5s)",
+      "status": "recovered",
+      "action": "navigate",
+      "target": "post-login",
+      "expected_page": null,
+      "actual_page": "/dashboard",
+      "attempt": 2,
+      "delay_sec": 5.0,
+      "details": {}
+    }
+  ],
+  "checkpoints": null,
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900,
+    "locator_policy": "dom_only"
+  },
+  "screenshots": [
+    "screenshots/error_reloading.png"
+  ],
+  "dom_signals": {
+    "checking_present": true,
+    "savings_present": true,
+    "both_accounts_present": true,
+    "balance_visible": true,
+    "account_card_present": true
+  },
+  "task_results": [
+    {
+      "status": "pass",
+      "outcome": "Balance retrieved",
+      "outcome_code": "balance_retrieved",
+      "outcome_source": "dom",
+      "outcome_evidence": {
+        "checking_present": true,
+        "savings_present": true,
+        "both_accounts_present": true,
+        "balance_visible": true,
+        "account_card_present": true
+      },
+      "artifact": "lookup_balance"
+    }
+  ],
+  "final_response": "Your checking account balance is $17,050.75."
+}

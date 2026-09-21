@@ -37,10 +37,21 @@ async def verify(state: dict, browser_manager: BrowserManager) -> dict:
         checkpoints["member_details_displayed"] = True
 
     visible_output = " ".join(str(value) for value in outputs.values())
-    if await _is_visible(page, "Savings Account") or "Savings" in visible_output:
-        checkpoints["savings_account_displayed"] = True
-    if await _is_visible(page, "Checking Account") or "Checking" in visible_output:
-        checkpoints["checking_account_displayed"] = True
+    # Prefer stable test ids — "Open Savings Account" form text must not count as open.
+    try:
+        if await page.get_by_test_id("savings-account").count() > 0:
+            checkpoints["savings_account_displayed"] = True
+        if await page.get_by_test_id("checking-account").count() > 0:
+            checkpoints["checking_account_displayed"] = True
+    except Exception:
+        if await _is_visible(page, "Savings Account") and not await _is_visible(
+            page, "Open Savings Account"
+        ):
+            checkpoints["savings_account_displayed"] = True
+        if await _is_visible(page, "Checking Account") and not await _is_visible(
+            page, "Open Checking Account"
+        ):
+            checkpoints["checking_account_displayed"] = True
 
     if re.search(r"\$[\d,]+(?:\.\d{2})?", visible_output) or re.search(
         r"\$[\d,]+(?:\.\d{2})?",

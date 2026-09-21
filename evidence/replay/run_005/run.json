@@ -1,0 +1,55 @@
+{
+  "run_id": "run_005",
+  "type": "replay",
+  "goal": "Open a checking account named Extra Checking for personal use",
+  "target_url": "http://localhost:5173/login",
+  "started_at": "2026-09-21T16:51:49Z",
+  "ended_at": "2026-09-21T16:51:52Z",
+  "status": "pass",
+  "outcome": "Account already exists",
+  "outcome_code": "account_already_exists",
+  "outcome_source": "explicit",
+  "outcome_evidence": {
+    "outcome_code": "account_already_exists"
+  },
+  "llm_used": false,
+  "llm_model": null,
+  "model_turns": 0,
+  "retries": 0,
+  "artifact_sequence": [],
+  "operators_created": [],
+  "operators_used": [],
+  "artifact_created": null,
+  "artifact_used": null,
+  "guardrail_audit": [],
+  "error_events": [],
+  "checkpoints": null,
+  "viewport": {
+    "profile": "desktop",
+    "width": 1280,
+    "height": 900,
+    "locator_policy": "dom_only"
+  },
+  "dom_signals": {
+    "checking_present": true,
+    "savings_present": true,
+    "both_accounts_present": true,
+    "account_card_present": true
+  },
+  "task_results": [
+    {
+      "status": "pass",
+      "outcome": "Account already exists",
+      "outcome_code": "account_already_exists",
+      "outcome_source": "dom",
+      "outcome_evidence": {
+        "checking_present": true,
+        "savings_present": true,
+        "both_accounts_present": true,
+        "account_card_present": true
+      },
+      "artifact": "open_account"
+    }
+  ],
+  "final_response": "You already have a Checking account."
+}

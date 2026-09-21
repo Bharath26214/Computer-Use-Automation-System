@@ -42,4 +42,4 @@
 {"step": 42, "type": "observe", "url": "http://localhost:5173/transactions", "title": "Atlas Bank"}
 {"step": 43, "type": "llm_decision", "action": "finish", "turn": 9}
 {"step": 44, "type": "guardrail", "action": "finish", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "terminal_action", "message": "Terminal action allowed"}
-{"step": 45, "type": "task_result", "operator": "transfer_funds", "status": "pass", "outcome": "Transfer completed"}
+{"step": 45, "type": "task_result", "operator": "transfer_funds", "status": "pass", "outcome": "Transfer completed", "outcome_code": "transfer_completed", "outcome_source": "answer_heuristic"}

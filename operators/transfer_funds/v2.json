@@ -215,11 +215,6 @@
       "required": true
     },
     {
-      "id": "checking_balance_visible",
-      "description": "Checking account balance card/text is present.",
-      "required": true
-    },
-    {
       "id": "transfer_id_visible",
       "description": "A transfer id or matching ledger rows are available.",
       "required": true

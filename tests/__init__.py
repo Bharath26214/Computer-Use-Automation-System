@@ -47,11 +47,15 @@ def run_cli(
     stdin_text: str | None = None,
 ) -> int:
     print(f"$ {command}")
+    env = os.environ.copy()
+    env.setdefault("PYTHONUNBUFFERED", "1")
+    # Test harness may --yes against draft operators while accumulating approval stats.
+    env.setdefault("ATLAS_ALLOW_DRAFT_YES", "1")
     completed = subprocess.run(
         command,
         shell=True,
         cwd=str(cwd or ROOT),
-        env=os.environ.copy(),
+        env=env,
         input=stdin_text,
         text=True if stdin_text is not None else None,
     )
@@ -68,7 +72,19 @@ def print_case(case: dict[str, Any]) -> None:
     if case.get("expect_outcome"):
         print(f"  outcome:    {case['expect_outcome']}")
     if case.get("confirm_reply"):
-        print(f"  confirm:    {case['confirm_reply']}")
+        reply = str(case["confirm_reply"]).strip().lower()
+        if reply in {"yes", "y"}:
+            print("  confirm:    yes (CLI --yes → agent auto-clicks app confirms)")
+        elif reply in {"no", "n"}:
+            print("  confirm:    no (CLI --no → abort app confirmation handoff)")
+        else:
+            print(f"  confirm:    {case['confirm_reply']}")
+    elif case.get("artifact_id") in {"delete_account", "open_account"} or (
+        "over $5000" in str(case.get("title") or "").lower()
+        and "reject" not in str(case.get("title") or "").lower()
+    ):
+        print("  confirm:    interactive (click app Yes/Confirm, then type resume)")
+        print("              add harness --yes to auto-click instead")
     if case.get("accounts"):
         print(f"  accounts:   {case['accounts']}")
     if case.get("notes"):

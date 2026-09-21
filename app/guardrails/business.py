@@ -158,7 +158,12 @@ async def check_transfer_accounts_and_funds(
             ),
             action=name,
             target=action.get("target"),
-            details={"from_account": source, "to_account": destination},
+            details={
+                "from_account": source,
+                "to_account": destination,
+                "missing_account": label,
+                "message": f"{label} account not found",
+            },
         )
     if not await account_is_open(browser_manager, destination):
         key = product_key(destination)
@@ -173,7 +178,12 @@ async def check_transfer_accounts_and_funds(
             ),
             action=name,
             target=action.get("target"),
-            details={"from_account": source, "to_account": destination},
+            details={
+                "from_account": source,
+                "to_account": destination,
+                "missing_account": label,
+                "message": f"{label} account not found",
+            },
         )
 
     if amount is not None:

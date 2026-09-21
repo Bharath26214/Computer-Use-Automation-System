@@ -19,7 +19,7 @@
 {"step": 19, "type": "fill", "target": "To Account", "value": "Checking", "risk": "low"}
 {"step": 20, "type": "verify", "checkpoint": "to_account_filled", "status": "passed"}
 {"step": 21, "type": "guardrail", "action": "fill", "target": "Amount", "status": "allowed", "risk": "medium", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/transfer)", "expected_page": "/transfer", "actual_page": "http://localhost:5173/transfer"}
-{"step": 22, "type": "fill", "target": "Amount", "value": "200.00", "risk": "medium"}
+{"step": 22, "type": "fill", "target": "Amount", "value": "12800.00", "risk": "medium"}
 {"step": 23, "type": "verify", "checkpoint": "amount_filled", "status": "passed"}
 {"step": 24, "type": "guardrail", "action": "click", "target": "Review Transfer", "status": "allowed", "risk": "medium", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/transfer)", "expected_page": "/transfer", "actual_page": "http://localhost:5173/transfer"}
 {"step": 25, "type": "click", "target": "Review Transfer", "risk": "medium"}
@@ -30,15 +30,5 @@
 {"step": 30, "type": "guardrail", "action": "click", "target": "Transactions", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/transfer)", "actual_page": "http://localhost:5173/transfer"}
 {"step": 31, "type": "click", "target": "Transactions", "risk": "low"}
 {"step": 32, "type": "verify", "checkpoint": "transactions_visible", "status": "passed"}
-{"step": 33, "type": "guardrail", "action": "read", "target": "transaction-table", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/transactions)", "expected_page": "/transactions", "actual_page": "http://localhost:5173/transactions"}
-{"step": 34, "type": "read", "target": "transaction-table", "risk": "low"}
-{"step": 35, "type": "verify", "checkpoint": "balance_visible", "status": "passed"}
-{"step": 36, "type": "operator", "operator": "delete_account", "mode": "discovery"}
-{"step": 37, "type": "observe", "url": "http://localhost:5173/transactions", "title": "Atlas Bank"}
-{"step": 38, "type": "llm_decision", "action": "click", "target": "Dashboard", "turn": 1}
-{"step": 39, "type": "guardrail", "action": "click", "target": "Dashboard", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/transactions)", "actual_page": "http://localhost:5173/transactions"}
-{"step": 40, "type": "click", "target": "Dashboard", "risk": "low"}
-{"step": 41, "type": "verify", "checkpoint": "step_completed", "status": "passed"}
-{"step": 42, "type": "observe", "url": "http://localhost:5173/dashboard", "title": "Atlas Bank"}
-{"step": 43, "type": "llm_retry", "reason": "structured_output_failed: RateLimitError", "retry": 1}
-{"step": 44, "type": "task_result", "operator": "delete_account", "status": "pass", "outcome": "Completed"}
+{"step": 33, "type": "operator", "operator": "delete_account", "mode": "discovery", "path": "/Users/bharathkumar/Computer-Use-Automation-System/operators/delete_account/v3.json"}
+{"step": 34, "type": "task_result", "operator": "delete_account", "status": "pass", "outcome": "Account deleted", "outcome_code": "account_deleted", "outcome_source": "dom"}

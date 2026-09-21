@@ -3,10 +3,15 @@
   "type": "discovery",
   "goal": "What is my checking account balance?",
   "target_url": "http://localhost:5173/login",
-  "started_at": "2026-09-20T22:51:30Z",
-  "ended_at": "2026-09-20T22:51:42Z",
+  "started_at": "2026-09-21T16:46:56Z",
+  "ended_at": "2026-09-21T16:47:11Z",
   "status": "pass",
   "outcome": "Balance retrieved",
+  "outcome_code": "balance_retrieved",
+  "outcome_source": "explicit",
+  "outcome_evidence": {
+    "outcome_code": "balance_retrieved"
+  },
   "llm_used": true,
   "llm_model": "openai/gpt-oss-20b",
   "model_turns": 2,
@@ -95,12 +100,28 @@
   "screenshots": [
     "screenshots/error_reloading.png"
   ],
+  "dom_signals": {
+    "checking_present": true,
+    "savings_present": true,
+    "both_accounts_present": true,
+    "balance_visible": true,
+    "account_card_present": true
+  },
   "task_results": [
     {
       "status": "pass",
       "outcome": "Balance retrieved",
+      "outcome_code": "balance_retrieved",
+      "outcome_source": "dom",
+      "outcome_evidence": {
+        "checking_present": true,
+        "savings_present": true,
+        "both_accounts_present": true,
+        "balance_visible": true,
+        "account_card_present": true
+      },
       "artifact": "lookup_balance"
     }
   ],
-  "final_response": "Your checking account balance is $16,950.75."
+  "final_response": "Your checking account balance is $4,250.75."
 }

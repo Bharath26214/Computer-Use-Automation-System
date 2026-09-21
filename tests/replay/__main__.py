@@ -4,10 +4,14 @@ Replay test CLI.
 Sets ATLAS_FORCE_REPLAY=1 so runners never fall back to discovery.
 No prep runs — each case is a single CLI invocation.
 
+HITL (see tests.hitl): agent clicks → app confirm page → YOU click Yes/Confirm
+→ resume. Only test6/test7 bake confirm_reply; other HITL cases are interactive
+unless you pass `--yes`. Unattended: `all --yes` (test7 stays --no).
+
 Examples:
   python3 -m tests.replay list
-  python3 -m tests.replay test1
-  python3 -m tests.replay all
+  python3 -m tests.replay test3
+  python3 -m tests.replay all --yes
 """
 
 from __future__ import annotations
@@ -97,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
         "-y",
         "--yes",
         action="store_true",
-        help="Auto-answer HITL prompts with yes for every case (except explicit reject cases).",
+        help="Auto-confirm HITL handoffs with --yes on every case (except explicit reject cases).",
     )
     args = parser.parse_args(argv)
     target = args.target.strip().lower()

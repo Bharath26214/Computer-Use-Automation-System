@@ -3,7 +3,11 @@
   "model": null,
   "model_turns": 0,
   "retries": 0,
-  "started_at": "2026-09-20T22:53:50Z",
-  "ended_at": "2026-09-20T22:53:55Z",
+  "started_at": "2026-09-21T16:49:38Z",
+  "ended_at": "2026-09-21T16:49:44Z",
+  "status": "failed",
+  "outcome": "Human did not confirm",
+  "outcome_code": "human_did_not_confirm",
+  "outcome_source": "explicit",
   "final_response": "Cannot be recovered: hard failure remains after retry (no other error paths for this member)"
 }

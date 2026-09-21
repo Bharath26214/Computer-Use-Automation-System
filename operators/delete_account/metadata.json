@@ -1,10 +1,25 @@
 {
   "artifact_id": "delete_account",
-  "latest": 3,
-  "most_frequent": 3,
+  "latest": 1,
+  "most_frequent": 1,
   "usage_counts": {
     "1": 0,
     "2": 0,
     "3": 0
+  },
+  "attempt_counts": {
+    "1": 0,
+    "2": 0,
+    "3": 0
+  },
+  "failure_counts": {
+    "1": 0,
+    "2": 0,
+    "3": 0
+  },
+  "approval": {
+    "1": "draft",
+    "2": "draft",
+    "3": "draft"
   }
 }

@@ -1,9 +1,13 @@
 {
   "run_id": "run_003",
-  "model": "openai/gpt-oss-20b",
-  "model_turns": 4,
+  "model": null,
+  "model_turns": 0,
   "retries": 0,
-  "started_at": "2026-09-20T22:48:05Z",
-  "ended_at": "2026-09-20T22:48:51Z",
-  "final_response": "Your savings account balance is $100.00.\n**Status:** success\n\n| Date | Description | Account | Amount | Type | Status |\n| --- | --- | --- | ---: | --- | --- |\n| 2026-09-20 | Transfer to Checking | Savings | -$100.00 | Debit | Completed |\n| 2026-09-20 | Transfer from Savings | Checking | +$100.00 | Credit | Completed |\n\nSavings account deleted."
+  "started_at": "2026-09-21T16:33:19Z",
+  "ended_at": "2026-09-21T16:34:05Z",
+  "status": "pass",
+  "outcome": "Account deleted",
+  "outcome_code": "account_deleted",
+  "outcome_source": "explicit",
+  "final_response": "Your savings account balance is $100.00.\n**Status:** success\n\n| Date | Description | Account | Amount | Type | Status |\n| --- | --- | --- | ---: | --- | --- |\n| 2026-09-21 | Transfer to Checking | Savings | -$100.00 | Debit | Completed |\n| 2026-09-21 | Transfer from Savings | Checking | +$100.00 | Credit | Completed |\n\nSavings account deleted."
 }

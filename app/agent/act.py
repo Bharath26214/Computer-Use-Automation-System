@@ -7,6 +7,99 @@ BOTH_ACCOUNTS_EXIST = (
 )
 
 
+async def _complete_app_confirmation(page, *, kind: str, run_logger=None) -> str | None:
+    """
+    After Delete/Open opens an app confirmation page: human clicks Yes / Yes, Confirm
+    (or --yes makes the agent click it). Returns an error message on abort/timeout,
+    otherwise None.
+
+    For transfer-before-delete, success means transfer was approved (account still exists).
+    For confirm-delete / confirm-open, success waits for the status message.
+    """
+    from app.run.confirm import ConfirmationTimeout, ask_browser_handoff, auto_confirm_reply
+
+    try:
+        await page.get_by_test_id("confirm-action").wait_for(state="visible", timeout=5000)
+    except Exception:
+        return None
+
+    confirm_id = None
+    for candidate in (
+        f"confirm-transfer-before-delete-{kind}",
+        f"confirm-delete-{kind}",
+        f"confirm-open-{kind}",
+        "confirm-transfer-before-delete-checking",
+        "confirm-transfer-before-delete-savings",
+        "confirm-delete-checking",
+        "confirm-delete-savings",
+        "confirm-open-checking",
+        "confirm-open-savings",
+    ):
+        try:
+            if await page.get_by_test_id(candidate).count() > 0:
+                confirm_id = candidate
+                break
+        except Exception:
+            continue
+
+    transfer_before_delete = bool(
+        confirm_id and "transfer-before-delete" in confirm_id
+    )
+    button_label = "Yes" if transfer_before_delete else "Yes, Confirm"
+
+    try:
+        approved = ask_browser_handoff(button_label)
+    except ConfirmationTimeout as exc:
+        return str(exc)
+
+    if not approved:
+        try:
+            cancel = page.get_by_test_id("confirm-cancel")
+            if await cancel.count() > 0:
+                await cancel.first.click()
+        except Exception:
+            pass
+        return "Human did not confirm."
+
+    if auto_confirm_reply() is True:
+        try:
+            if confirm_id:
+                await page.get_by_test_id(confirm_id).click()
+            else:
+                await page.get_by_role("button", name=button_label).click()
+        except Exception as exc:
+            return f"Action failed: could not click {button_label} ({exc})"
+
+    if transfer_before_delete:
+        try:
+            await page.get_by_test_id("open-account-message").wait_for(
+                state="visible",
+                timeout=5000,
+            )
+        except Exception:
+            pass
+        return None
+
+    try:
+        await page.get_by_test_id("open-account-message").wait_for(
+            state="visible",
+            timeout=8000,
+        )
+        if run_logger is not None:
+            from app.run.screenshots import capture_run_screenshot
+
+            if confirm_id and "open" in confirm_id:
+                shot = "success_account_opened"
+            elif confirm_id and "delete" in confirm_id:
+                shot = "success_account_deleted"
+            else:
+                shot = "success_account_deleted"
+            await capture_run_screenshot(run_logger, page, shot)
+    except Exception:
+        pass
+    return None
+
+
 def _reject_coordinates(action: dict) -> None:
     """Hard rule: Playwright must drive the DOM, never x/y click points."""
     target = action.get("target")
@@ -108,11 +201,17 @@ async def act(state: dict, browser_manager: BrowserManager) -> dict:
     from app.guardrails.types import GuardrailDecision, HITLState
 
     if state.get("guardrails_already_checked"):
+        # Preserve handoff outcome from the safety node (resume → skip re-click).
+        prior_rule = str(state.get("guardrail_rule") or "prechecked")
         decision = GuardrailDecision(
             decision=HITLState.ALLOW,
             risk=classify_action_risk(action),
-            rule="prechecked",
-            message="Already cleared by safety node",
+            rule=prior_rule,
+            message=(
+                "Human handoff already completed"
+                if prior_rule == "hitl_handoff_resumed"
+                else "Already cleared by safety node"
+            ),
             status="allowed",
             action=name,
             target=target,
@@ -138,6 +237,9 @@ async def act(state: dict, browser_manager: BrowserManager) -> dict:
             "guardrail_decision": decision.decision.value,
             "answer": decision.message,
         }
+
+    # After browser handoff + "resume", the human already clicked — do not re-click.
+    handoff_skip_click = decision.rule == "hitl_handoff_resumed"
 
     error_events = list(state.get("error_events") or [])
 
@@ -199,6 +301,58 @@ async def act(state: dict, browser_manager: BrowserManager) -> dict:
         if name == "click":
             if not target:
                 raise ValueError("click requires a target")
+            if handoff_skip_click:
+                print(
+                    f"[act] handoff resume — skipping click “{target}” "
+                    "(human already completed it in the browser)"
+                )
+                try:
+                    await page.wait_for_load_state("networkidle")
+                except Exception:
+                    pass
+                lower = str(target).lower()
+                run_logger = state.get("run_logger")
+                if "confirm transfer" in lower:
+                    try:
+                        await page.get_by_test_id("transfer-success").wait_for(
+                            state="visible",
+                            timeout=8000,
+                        )
+                        from app.run.screenshots import capture_run_screenshot
+
+                        await capture_run_screenshot(
+                            run_logger, page, "success_transfer_done"
+                        )
+                    except Exception:
+                        pass
+                if (
+                    "yes" in lower
+                    or "confirm-open" in lower
+                    or ("open" in lower and "confirm" in lower)
+                ):
+                    try:
+                        await page.get_by_test_id("open-account-message").wait_for(
+                            state="visible",
+                            timeout=8000,
+                        )
+                        from app.run.screenshots import capture_run_screenshot
+
+                        await capture_run_screenshot(
+                            run_logger, page, "success_account_opened"
+                        )
+                    except Exception:
+                        pass
+                if "confirm-delete" in lower or (
+                    "delete" in lower and "confirm" in lower
+                ):
+                    try:
+                        await page.get_by_test_id("open-account-message").wait_for(
+                            state="visible",
+                            timeout=8000,
+                        )
+                    except Exception:
+                        pass
+                return f"Human completed {target} in browser"
             clicked = False
             aliases = {
                 "transactions": "nav-transactions",
@@ -210,6 +364,14 @@ async def act(state: dict, browser_manager: BrowserManager) -> dict:
                 "open savings account": "open-savings-account",
                 "delete checking account": "delete-checking-account",
                 "delete savings account": "delete-savings-account",
+                "yes, confirm": None,
+                "yes": None,
+                "confirm-delete-checking": "confirm-delete-checking",
+                "confirm-delete-savings": "confirm-delete-savings",
+                "confirm-open-checking": "confirm-open-checking",
+                "confirm-open-savings": "confirm-open-savings",
+                "confirm-transfer-before-delete-checking": "confirm-transfer-before-delete-checking",
+                "confirm-transfer-before-delete-savings": "confirm-transfer-before-delete-savings",
             }
             test_id = aliases.get(str(target).lower())
             candidates = []
@@ -255,7 +417,8 @@ async def act(state: dict, browser_manager: BrowserManager) -> dict:
             if local_result.startswith("Clicked"):
                 await page.wait_for_load_state("networkidle")
                 run_logger = state.get("run_logger")
-                if "confirm transfer" in str(target).lower():
+                lower_target = str(target).lower()
+                if "confirm transfer" in lower_target:
                     try:
                         await page.get_by_test_id("transfer-success").wait_for(
                             state="visible",
@@ -268,27 +431,41 @@ async def act(state: dict, browser_manager: BrowserManager) -> dict:
                         )
                     except Exception:
                         pass
-                if "open" in str(target).lower() and "account" in str(target).lower():
+                # Final Yes, Confirm on open/delete confirmation page.
+                if (
+                    "confirm-open" in lower_target
+                    or "confirm-delete" in lower_target
+                    or ("yes" in lower_target and "confirm" in lower_target)
+                ):
                     try:
                         await page.get_by_test_id("open-account-message").wait_for(
                             state="visible",
-                            timeout=4000,
+                            timeout=8000,
                         )
                         from app.run.screenshots import capture_run_screenshot
 
-                        await capture_run_screenshot(
-                            run_logger, page, "success_account_opened"
+                        label = (
+                            "success_account_opened"
+                            if "open" in lower_target
+                            else "success_account_deleted"
                         )
+                        await capture_run_screenshot(run_logger, page, label)
                     except Exception:
                         pass
-                if "delete" in str(target).lower() and "account" in str(target).lower():
-                    try:
-                        await page.get_by_test_id("open-account-message").wait_for(
-                            state="visible",
-                            timeout=4000,
-                        )
-                    except Exception:
-                        pass
+                # Agent clicked Delete / Open — confirmation page appears; human confirms.
+                elif (
+                    "delete" in lower_target and "account" in lower_target
+                ) or (
+                    "open" in lower_target and "account" in lower_target
+                ):
+                    kind = "checking" if "checking" in lower_target else "savings"
+                    handoff_error = await _complete_app_confirmation(
+                        page,
+                        kind=kind,
+                        run_logger=run_logger,
+                    )
+                    if handoff_error:
+                        return handoff_error
             return local_result
 
         if name == "read":
@@ -358,6 +535,13 @@ async def act(state: dict, browser_manager: BrowserManager) -> dict:
         checkpoints=state.get("checkpoints"),
     )
     error_events.extend(recovered_events)
+
+    if result and (
+        "human did not confirm" in result.lower()
+        or "human declined" in result.lower()
+        or "confirmation timed out" in result.lower()
+    ):
+        fatal = True
 
     # Business soft-fails (already exists) should not be treated as fatal UI errors.
     if fatal and result and not any(

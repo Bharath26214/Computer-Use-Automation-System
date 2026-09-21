@@ -207,7 +207,16 @@ async def run_replay(
     context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     from app.browser.viewport import current_viewport, viewport_compatible
-    from app.artifact.recorder import mark_viewport_validated
+    from app.artifact.recorder import (
+        assert_approved_for_production,
+        mark_viewport_validated,
+        record_artifact_usage,
+    )
+
+    artifact_id = str(artifact.get("artifact_id") or "")
+    version = int(artifact.get("version") or 0)
+    if artifact_id and version > 0:
+        assert_approved_for_production(artifact_id, version)
 
     inputs = current_inputs(goal)
     context = dict(context or {})
@@ -293,10 +302,8 @@ async def run_replay(
                 "action": action,
                 "goal": goal,
                 "params": inputs,
-                "allow_delete": bool(context.get("allow_delete"))
-                or str(artifact.get("artifact_id") or "") == "delete_account",
-                "allow_open": bool(context.get("allow_open"))
-                or str(artifact.get("artifact_id") or "") == "open_account",
+                "allow_delete": bool(context.get("allow_delete")),
+                "allow_open": bool(context.get("allow_open")),
                 "skip_large_transfer_approval": bool(
                     context.get("skip_large_transfer_approval")
                     or inputs.get("skip_large_transfer_approval")
@@ -320,16 +327,15 @@ async def run_replay(
             **state,
             "action": action,
             "params": inputs,
-            "allow_delete": bool(context.get("allow_delete"))
-            or str(artifact.get("artifact_id") or "") == "delete_account",
-            "allow_open": bool(context.get("allow_open"))
-            or str(artifact.get("artifact_id") or "") == "open_account",
+            "allow_delete": bool(context.get("allow_delete")),
+            "allow_open": bool(context.get("allow_open")),
             "skip_large_transfer_approval": bool(
                 context.get("skip_large_transfer_approval")
                 or inputs.get("skip_large_transfer_approval")
             ),
             "guardrail_approved": bool(context.get("guardrail_approved")),
             "guardrails_already_checked": True,
+            "guardrail_rule": safety.get("guardrail_rule"),
             "run_logger": run_logger,
         }
         acted = await run_act(step_state, browser_manager)
@@ -383,12 +389,14 @@ async def run_replay(
     except Exception:
         pass
     try:
-        from app.artifact.recorder import record_artifact_usage
-
-        artifact_id = str(artifact.get("artifact_id") or "")
-        version = int(artifact.get("version") or 0)
         if artifact_id and version > 0:
-            record_artifact_usage(artifact_id, version)
+            meta = record_artifact_usage(artifact_id, version)
+            status = str((meta.get("approval") or {}).get(str(version)) or "draft")
+            print(
+                f"[approval] {artifact_id}/v{version} → {status} "
+                f"(successes={(meta.get('usage_counts') or {}).get(str(version), 0)}/"
+                f"attempts={(meta.get('attempt_counts') or {}).get(str(version), 0)})"
+            )
     except Exception:
         pass
     print(
@@ -422,7 +430,7 @@ async def run_replay_with_fallbacks(
     Desktop-captured operators replay on tablet/mobile via DOM + scroll-into-view.
     Only when no version works do runners create a new discovery version.
     """
-    from app.artifact.recorder import iter_artifact_rollbacks
+    from app.artifact.recorder import iter_artifact_rollbacks, record_artifact_failure
 
     if artifact is None:
         return {"status": "replay_failed", "error": "No artifact", "mode": "replay"}
@@ -453,6 +461,20 @@ async def run_replay_with_fallbacks(
         )
         if result.get("status") in {"replayed", "guardrail_blocked"}:
             return result
+        # Failed attempt to reproduce with this version (not a guardrail stop).
+        try:
+            cid = str(candidate.get("artifact_id") or artifact_id or "")
+            cver = int(candidate.get("version") or 0)
+            if cid and cver > 0:
+                meta = record_artifact_failure(cid, cver)
+                status = str((meta.get("approval") or {}).get(str(cver)) or "draft")
+                print(
+                    f"[approval] {cid}/v{cver} → {status} "
+                    f"(failures={(meta.get('failure_counts') or {}).get(str(cver), 0)}, "
+                    f"attempts={(meta.get('attempt_counts') or {}).get(str(cver), 0)})"
+                )
+        except Exception:
+            pass
         last_error = result
         print(
             f"[replay] v{candidate.get('version')} failed on this viewport; "

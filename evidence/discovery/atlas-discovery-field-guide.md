@@ -1,81 +1,46 @@
 # Atlas Discovery Field Guide
 
-How discovery runs are planned, executed, and recorded under `evidence/discovery/`.
+Catalog of discovery tests: members, HITL, case descriptions, and wall-clock duration from each run’s `summary.json`. For how to run the suite, see [README.md](./README.md).
 
-## Purpose
-
-Discovery teaches the agent a bank workflow **once**, captures a reusable DOM-only operator under `operators/`, and writes a full evidence pack for that run (`run.json`, `events.jsonl`, `summary.json`, plus `transfer.md` when money moves).
-
-Run discovery **before** replay. Replay depends on the operators saved here.
-
-## Process
-
-1. Start the demo bank (`atlas-demo-bank`) and ensure members are seeded.
-2. Force discovery for the capability under test:
-   ```bash
-   python3 -m tests.discovery list
-   python3 -m tests.discovery test1
-   python3 -m tests.discovery all
-   ```
-3. The harness sets `ATLAS_FORCE_DISCOVERY=1` and scopes rediscovery with `ATLAS_FORCE_DISCOVERY_ARTIFACT`.
-4. Nested helpers (e.g. lookup inside delete) may still **replay** an already-saved operator.
-5. Each successful discovery writes:
-   - `evidence/discovery/run_NNN/` — run evidence
-   - `operators/{capability}/vN.json` — new version only when steps or handled-error kinds differ
-6. Scenario users stamp `error_handling` on the operator (blank `{}` for happy-path alex123).
-7. Operator layout and versioning rules: `operators/README.md`.
-
-## Sequence rule
-
-Per scenario user, keep this order so account state stays consistent:
-
-```text
-lookup_balance  →  transfer (< $5000)  →  delete savings  →  open savings
-```
-
-## Cases (13)
-
-| ID | User | Scenario | Capability | Query | Status |
-| --- | --- | --- | --- | --- | --- |
-| test1 | alex123 | normal | lookup_balance | What is my checking account balance? | success |
-| test2 | alex123 | normal | transfer_funds | Transfer 100 from checking to savings | success |
-| test3 | alex123 | normal | delete_account | Delete my savings account | success |
-| test4 | alex123 | normal | open_account | Open a savings account named Travel Fund for personal use | success |
-| test5 | casey404 | page_not_found | lookup_balance | What is my checking account balance? | success |
-| test6 | casey404 | page_not_found | transfer_funds | Transfer 100 from checking to savings | success |
-| test7 | casey404 | page_not_found | delete_account | Delete my savings account | success |
-| test8 | casey404 | page_not_found | open_account | Open a savings account named Travel Fund for personal use | success |
-| test9 | taylor321 | reloading | lookup_balance | What is my checking account balance? | success |
-| test10 | taylor321 | reloading | transfer_funds | Transfer 100 from checking to savings | success |
-| test11 | taylor321 | reloading | delete_account | Delete my savings account | success |
-| test12 | taylor321 | reloading | open_account | Open a savings account named Travel Fund for personal use | success |
-| test13 | blake000 | hard_failure | lookup_balance | What is my checking account balance? | failure |
+Thirteen desktop cases: four users × lookup → transfer → delete → open, plus one hard-failure lookup. **Suite total: 5m 29s.**
 
 ## Members
 
 | Username | Login scenario |
 | --- | --- |
-| alex123 | normal |
-| casey404 | page_not_found (recover after reload) |
-| taylor321 | reloading |
-| blake000 | hard_failure (cannot recover) |
+| alex123 | Normal dashboard after sign-in |
+| casey404 | Page not found, then recover after reload |
+| taylor321 | Reloading gate, then dashboard |
+| blake000 | Hard failure (cannot recover) |
 
-## Evidence layout
+## HITL
 
-```text
-evidence/discovery/
-  atlas-discovery-field-guide.md   ← this file
-  run_001/
-    run.json
-    events.jsonl
-    summary.json
-    transfer.md                    ← only when a transfer occurred
-  run_002/
-  …
-```
+| Capability | Confirmation |
+| --- | --- |
+| `lookup_balance` | None |
+| `transfer_funds` under $5000 | None — agent confirms the transfer |
+| `delete_account` | App handoff: Transfer funds Yes/No if balance &gt; 0, then Yes, Confirm on delete (two resumes when funds must move first) |
+| `open_account` | App handoff: Yes, Confirm after Open |
+| Hard failure | None |
 
-`transfer.md` starts with run **Status** (`success` / `failure`) and **Outcome** (from `run.json`), then the debit/credit ledger table.
+## Cases
 
-Viewport for all discovery cases: **desktop**.
+| ID | Run | User | Scenario | Capability | Description | Expected | Duration |
+| --- | --- | --- | --- | --- | --- | --- | ---: |
+| test1 | run_001 | alex123 | normal | lookup_balance | Read checking balance on a clean login | Balance retrieved | 13s |
+| test2 | run_002 | alex123 | normal | transfer_funds | Transfer $100 checking → savings (under $5000) | Transfer completed | 35s |
+| test3 | run_003 | alex123 | normal | delete_account | Delete savings (transfer remaining funds if needed, then confirm delete) | Account deleted | 46s |
+| test4 | run_004 | alex123 | normal | open_account | Re-open savings named Travel Fund (personal use) | Account opened | 15s |
+| test5 | run_005 | casey404 | page_not_found | lookup_balance | Same lookup after 404 recovery | Balance retrieved | 7s |
+| test6 | run_006 | casey404 | page_not_found | transfer_funds | Same small transfer after 404 recovery | Transfer completed | 32s |
+| test7 | run_007 | casey404 | page_not_found | delete_account | Same delete after 404 recovery | Account deleted | 41s |
+| test8 | run_008 | casey404 | page_not_found | open_account | Same open after 404 recovery | Account opened | 14s |
+| test9 | run_009 | taylor321 | reloading | lookup_balance | Same lookup after reloading gate | Balance retrieved | 15s |
+| test10 | run_010 | taylor321 | reloading | transfer_funds | Same small transfer after reloading gate | Transfer completed | 27s |
+| test11 | run_011 | taylor321 | reloading | delete_account | Same delete after reloading gate | Account deleted | 1m 01s |
+| test12 | run_012 | taylor321 | reloading | open_account | Same open after reloading gate | Account opened | 17s |
+| test13 | run_013 | blake000 | hard_failure | lookup_balance | Lookup against an unrecoverable login failure | Fail (hard failure) | 6s |
 
-Source of truth for case definitions: `tests/discovery/cases.py`.
+Scenario users stamp `error_handling` on the operator they create (`{}` for alex123; `page_not_found` / `reloading` for the others). blake000 does not produce a reusable operator. Durations are `ended_at − started_at` from `summary.json` (includes HITL wait time).
+
+Source of truth: `tests/discovery/cases.py`.

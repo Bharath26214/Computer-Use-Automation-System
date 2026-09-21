@@ -20,75 +20,7 @@ from app.plan import (
     PlannedTask,
     account_params,
 )
-from app.run.confirm import ConfirmationTimeout, ask_yes_no
 from app.run.logger import RunLogger
-
-DELETE_ACCOUNT_STEPS = [
-    {
-        "id": "step_1",
-        "type": "navigate",
-        "description": "navigate \u2192 {{bank_url}}",
-        "target": {
-            "strategy": "url",
-            "value": "{{bank_url}}",
-            "robustness": "Navigate by absolute/templated URL so replay starts from a known route."
-        }
-    },
-    {
-        "id": "step_2",
-        "type": "fill",
-        "description": "fill \u2192 Username",
-        "target": {
-            "strategy": "label",
-            "value": "Username",
-            "robustness": "Use the Username field label; login is username-only (member_id = name + three digits)."
-        },
-        "value": "{{member_id}}"
-    },
-    {
-        "id": "step_3",
-        "type": "click",
-        "description": "click \u2192 Sign In",
-        "target": {
-            "strategy": "role",
-            "role": "button",
-            "name": "Sign In",
-            "robustness": "Locate by ARIA role + accessible name so the control remains findable if layout shifts but semantics stay the same."
-        }
-    },
-    {
-        "id": "step_4",
-        "type": "click",
-        "description": "click \u2192 Dashboard",
-        "target": {
-            "strategy": "role",
-            "role": "button",
-            "name": "Dashboard",
-            "robustness": "Locate by ARIA role + accessible name so the control remains findable if layout shifts but semantics stay the same."
-        }
-    },
-    {
-        "id": "step_5",
-        "type": "click",
-        "description": "click \u2192 Delete {{account}} Account",
-        "target": {
-            "strategy": "role",
-            "role": "button",
-            "name": "Delete {{account}} Account",
-            "robustness": "Locate by ARIA role + accessible name so the control remains findable if layout shifts but semantics stay the same."
-        }
-    },
-    {
-        "id": "step_6",
-        "type": "read",
-        "description": "read \u2192 open-account-message",
-        "target": {
-            "strategy": "testid",
-            "value": "open-account-message",
-            "robustness": "Prefer data-testid attributes; they are stable across copy changes and less brittle than visible text."
-        }
-    }
-]
 
 CURRENCY = re.compile(r"\$([\d,]+(?:\.\d{1,2})?)")
 
@@ -128,7 +60,7 @@ def _transfer_all_task(source: str, destination: str, amount: str) -> PlannedTas
             "to_account": destination,
             "amount": amount,
             "memo": f"{source} account closure",
-            # Delete flow already got human approval; do not re-ask for >$5000.
+            # Human already approved transfer-before-delete on the app page.
             "skip_large_transfer_approval": True,
         },
     )
@@ -185,37 +117,137 @@ async def _run_action(
     return str(acted.get("last_result") or "")
 
 
-async def delete_account_in_ui(browser_manager: BrowserManager, account: str) -> str:
-    kind = "checking" if account.lower().startswith("check") else "savings"
+async def _ensure_dashboard(browser_manager: BrowserManager) -> None:
     page = await browser_manager.open()
     if "/dashboard" not in (page.url or ""):
         await _run_action(
             browser_manager,
             {"action": "click", "target": "Dashboard"},
         )
+
+
+async def request_transfer_before_delete(
+    browser_manager: BrowserManager,
+    account: str,
+) -> str:
+    """
+    Click Delete on a nonzero-balance account so the app shows Transfer funds Yes/No.
+    Human clicks Yes in the browser, then types resume. Returns error string or "".
+    """
+    await _ensure_dashboard(browser_manager)
+    kind = "checking" if account.lower().startswith("check") else "savings"
+    page = await browser_manager.open()
     try:
         button = page.get_by_test_id(f"delete-{kind}-account")
         await button.wait_for(state="visible", timeout=5000)
-        await page.wait_for_function(
-            "(sel) => { const el = document.querySelector(sel); return !!el && !el.disabled; }",
-            arg=f"[data-testid='delete-{kind}-account']",
-            timeout=8000,
-        )
     except Exception:
         if not await _account_visible(browser_manager, account):
             return f"There is no {account} account to delete."
-        return f"{account} still has a balance, so it was not deleted."
+        return f"Could not find Delete {account} Account."
+
+    print(
+        f"[delete_account] click Delete {account} Account → transfer-funds Yes/No page"
+    )
     clicked = await _run_action(
         browser_manager,
         {"action": "click", "target": f"Delete {account} Account"},
-        allow_delete=True,
+    )
+    if "human did not confirm" in str(clicked).lower() or "human declined" in str(
+        clicked
+    ).lower():
+        return clicked
+    if str(clicked).startswith("Action failed"):
+        return clicked
+    # After handoff, message should note transfer approval.
+    message = await _run_action(
+        browser_manager,
+        {"action": "read", "target": "open-account-message"},
+    )
+    if "transfer funds approved" in str(message).lower():
+        return ""
+    if "human did not confirm" in str(message).lower():
+        return message
+    # Handoff already completed inside act; treat as approved if no hard failure.
+    return ""
+
+
+def _persist_delete_operator(goal: str, account: str, run_logger: RunLogger) -> None:
+    """
+    Scripted delete never goes through LLM discovery, so persist the DOM steps
+    that delete_account_in_ui just executed (Dashboard → Delete → status read).
+    """
+    from app.artifact.recorder import persist_artifact
+    from app.browser.viewport import current_viewport
+
+    recorded = [
+        {
+            "action": "click",
+            "target": "Dashboard",
+            "reason": "Return to dashboard before delete",
+        },
+        {
+            "action": "click",
+            "target": f"Delete {account} Account",
+            "reason": f"Delete the {account} account",
+        },
+        {
+            "action": "read",
+            "target": "open-account-message",
+            "reason": "Read delete confirmation message",
+        },
+    ]
+    path = persist_artifact(
+        {
+            "goal": goal or f"Delete the {account} account",
+            "artifact_id": DELETE_ACCOUNT,
+            "recorded_steps": recorded,
+            "viewport": current_viewport(),
+            "checkpoints": {
+                "member_details_displayed": True,
+                "account_deleted": True,
+            },
+        }
+    )
+    if path is not None:
+        print(f"[delete_account] saved operator {path}")
+        run_logger.note_operator(f"{DELETE_ACCOUNT}/v1", created=True)
+        run_logger.event(
+            type="operator",
+            operator=f"{DELETE_ACCOUNT}",
+            mode="discovery",
+            path=str(path),
+        )
+
+
+async def delete_account_in_ui(browser_manager: BrowserManager, account: str) -> str:
+    """Click Delete on a zero-balance account → Confirm Delete → human Yes, Confirm + resume."""
+    kind = "checking" if account.lower().startswith("check") else "savings"
+    await _ensure_dashboard(browser_manager)
+    page = await browser_manager.open()
+    try:
+        button = page.get_by_test_id(f"delete-{kind}-account")
+        await button.wait_for(state="visible", timeout=5000)
+    except Exception:
+        if not await _account_visible(browser_manager, account):
+            return f"There is no {account} account to delete."
+        return f"{account} account was not deleted."
+
+    print(
+        f"[delete_account] click Delete {account} Account → confirm deletion page"
+    )
+    clicked = await _run_action(
+        browser_manager,
+        {"action": "click", "target": f"Delete {account} Account"},
     )
     if str(clicked).startswith("Action failed"):
+        return clicked
+    if "human did not confirm" in str(clicked).lower() or "human declined" in str(
+        clicked
+    ).lower():
         return clicked
     message = await _run_action(
         browser_manager,
         {"action": "read", "target": "open-account-message"},
-        allow_delete=True,
     )
     if "deleted" in message.lower():
         return f"{account} account deleted."
@@ -224,6 +256,15 @@ async def delete_account_in_ui(browser_manager: BrowserManager, account: str) ->
     if not await _account_visible(browser_manager, account):
         return f"{account} account deleted."
     return clicked or f"{account} account was not deleted."
+
+
+def _delete_succeeded(message: str) -> bool:
+    text = (message or "").lower()
+    if "was not deleted" in text:
+        return False
+    if "human did not confirm" in text or "human declined" in text:
+        return False
+    return "deleted" in text
 
 
 async def _finish_delete(
@@ -247,7 +288,7 @@ async def _finish_delete(
             browser_manager,
             run_logger,
             skip_auth=True,
-            context={"allow_delete": True},
+            context={},
         )
         if result.get("status") == "replayed":
             return result.get("answer") or f"{account} account deleted."
@@ -269,7 +310,6 @@ async def _finish_delete(
         run_logger,
         finish_run=False,
         task_kind="delete_account",
-        allow_delete=True,
     )
 
 
@@ -299,8 +339,16 @@ async def run_delete_account(
     assert run_logger is not None
     answers: list[str] = []
 
-    def _finish(answer: str, error: str | None = None) -> None:
+    async def _finish(answer: str, error: str | None = None) -> None:
         if finish_self:
+            try:
+                await run_logger.capture_dom_outcome(
+                    browser_manager.page,
+                    task_kind="delete_account",
+                    account=account,
+                )
+            except Exception:
+                pass
             run_logger.finish(
                 answer=answer,
                 error=error,
@@ -327,61 +375,42 @@ async def run_delete_account(
         )
         if missing_lookup or (not source_visible and balance is None):
             message = f"There is no {account} account to delete."
-            _finish(message)
+            await _finish(message)
             return message
         if balance is None:
             message = (
                 f"I could not read the {account} balance, so the account was not deleted."
             )
-            _finish(message, error="UI changed: balance unread")
+            await _finish(message, error="UI changed: balance unread")
             return message
 
         if balance > 0:
             destination_visible = await _account_visible(browser_manager, other)
             print(
-                f"The {account} account cannot be deleted with a nonzero balance "
-                f"({format_currency(balance)})."
+                f"The {account} balance is {format_currency(balance)}. "
+                f"Agent clicks Delete → you approve Transfer funds (Yes) on the app, "
+                f"then type resume. After that, funds move to {other} and delete continues."
             )
             if not destination_visible:
                 message = (
                     f"There is no {other} account to receive the funds. "
                     f"Open a {other} account first. {account} was not deleted."
                 )
-                _finish(message)
-                return message
-            print(
-                f"Transfer all {format_currency(balance)} from {account} to {other} "
-                f"so the {account} account can be deleted? (yes/no)"
-            )
-            try:
-                confirmed = ask_yes_no("> ")
-            except ConfirmationTimeout as exc:
-                message = str(exc)
-                answers.append(message)
-                _finish(message, error=message)
-                return message
-            if not confirmed:
-                message = (
-                    f"{account} account was not deleted: transfer of remaining funds "
-                    f"to {other} was declined."
-                )
-                _finish(message)
+                await _finish(message)
                 return message
 
-            print(
-                f"Delete the {account} account after the transfer? "
-                f"This process is irreversible. (yes/no)"
-            )
-            try:
-                confirmed = ask_yes_no("> ")
-            except ConfirmationTimeout as exc:
-                message = str(exc)
+            # Step 1: Delete click → transfer Yes/No page → human Yes + resume
+            approved = await request_transfer_before_delete(browser_manager, account)
+            if approved:
+                message = (
+                    f"{account} account was not deleted: transfer of remaining funds "
+                    f"was declined."
+                    if "did not confirm" in approved.lower()
+                    or "declined" in approved.lower()
+                    else approved
+                )
                 answers.append(message)
-                _finish(message, error=message)
-                return message
-            if not confirmed:
-                message = f"{account} account was not deleted."
-                _finish(message)
+                await _finish(message)
                 return message
 
             amount = format_amount(balance)
@@ -398,58 +427,64 @@ async def run_delete_account(
             answers.append(transfer_answer)
             if "could not find a transfer amount" in transfer_answer.lower():
                 message = f"Transfer failed, so {account} was not deleted."
-                _finish(message, error="UI changed")
+                await _finish(message, error="UI changed")
                 return message
             if "human approval was not given" in transfer_answer.lower() or (
                 "human did not confirm" in transfer_answer.lower()
-            ):
+            ) or "human declined" in transfer_answer.lower():
                 message = (
                     f"{account} account was not deleted: transfer of remaining funds "
                     f"was declined."
                 )
-                _finish(message)
+                await _finish(message)
                 return message
             if "insufficient funds" in transfer_answer.lower():
                 message = (
                     f"Transfer failed (insufficient funds), so {account} was not deleted."
                 )
-                _finish(message, error="UI changed")
+                await _finish(message, error="UI changed")
                 return message
             if "account not found" in transfer_answer.lower() or "do not have a" in transfer_answer.lower():
                 message = (
                     f"Transfer failed (account missing), so {account} was not deleted."
                 )
-                _finish(message)
+                await _finish(message)
                 return message
             if "transfer to" not in transfer_answer.lower() and "transfer from" not in transfer_answer.lower():
                 message = (
                     f"Transfer failed, so {account} was not deleted. {transfer_answer}"
                 )
-                _finish(message, error="UI changed")
-                return message
-        else:
-            print(
-                f"The {account} balance is {format_currency(0)}. "
-                f"Delete the {account} account? This process is irreversible. (yes/no)"
-            )
-            try:
-                confirmed = ask_yes_no("> ")
-            except ConfirmationTimeout as exc:
-                message = str(exc)
-                answers.append(message)
-                _finish(message, error=message)
-                return message
-            if not confirmed:
-                message = f"{account} account was not deleted."
-                _finish(message)
+                await _finish(message, error="UI changed")
                 return message
 
+            # Step 2: Delete again → Confirm Delete → human Yes, Confirm + resume
+            print(
+                f"[delete_account] balance cleared — click Delete {account} Account "
+                f"again; confirm deletion on the app, then type resume."
+            )
+            deleted = await delete_account_in_ui(browser_manager, account)
+            if _delete_succeeded(deleted):
+                _persist_delete_operator(task.goal, account, run_logger)
+            answers.append(deleted)
+            combined = "\n".join(part for part in answers if part)
+            await _finish(combined)
+            return combined
+
+        print(
+            f"The {account} balance is {format_currency(0)}. "
+            f"Agent clicks Delete → you confirm on the app page, then type resume."
+        )
         print(f"[delete_account] deleting {account}")
-        deleted = await _finish_delete(task.goal, account, browser_manager, run_logger)
+        # Prefer direct UI path so the two-step handoff is consistent.
+        deleted = await delete_account_in_ui(browser_manager, account)
+        if "was not deleted" in deleted.lower() and "human did not confirm" not in deleted.lower():
+            deleted = await _finish_delete(task.goal, account, browser_manager, run_logger)
+        elif _delete_succeeded(deleted):
+            _persist_delete_operator(task.goal, account, run_logger)
         answers.append(deleted)
         combined = "\n".join(part for part in answers if part)
-        _finish(combined)
+        await _finish(combined)
         return combined
     except Exception as exc:
-        _finish(str(exc), error=str(exc))
+        await _finish(str(exc), error=str(exc))
         raise

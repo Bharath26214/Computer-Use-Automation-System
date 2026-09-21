@@ -15,7 +15,11 @@ from app.errors.types import (
     RuntimeErrorEvent,
 )
 from app.guardrails.ui import expected_page_for_action
-from app.run.confirm import ConfirmationTimeout, ask_yes_no
+from app.run.confirm import (
+    ConfirmationTimeout,
+    ask_browser_handoff,
+    confirmation_label,
+)
 from app.run.logger import RunLogger
 from app.run.screenshots import capture_run_screenshot
 
@@ -53,19 +57,32 @@ async def handle_human_intervention(
     run_logger: RunLogger | None = None,
     checkpoints: dict[str, Any] | None = None,
 ) -> RuntimeErrorEvent:
-    """Ask the operator; returns approved / rejected / cannot_recover (timeout)."""
+    """
+    Browser handoff on the app confirmation page.
+
+    Human clicks Yes, Confirm / Confirm Transfer in the browser, then types resume.
+    With --yes the agent clicks instead. With --no / abort the action is blocked.
+    """
     action = action or {}
+    target = str(action.get("target") or action.get("action") or "Yes, Confirm")
+    label = confirmation_label(target)
+    instruction = (
+        prompt
+        if prompt and ("browser" in prompt.lower() or "resume" in prompt.lower())
+        else (
+            f"Confirmation page open: click “{label}” in the browser, then type resume."
+        )
+    )
     event = RuntimeErrorEvent(
         kind=ErrorKind.HUMAN_INTERVENTION,
-        message=prompt,
+        message=instruction,
         status=RecoveryStatus.RETRYING,
         action=action.get("action"),
         target=action.get("target"),
     )
     await _log_event(run_logger, event)
     try:
-        print(prompt)
-        approved = ask_yes_no("> ")
+        approved = ask_browser_handoff(label)
     except ConfirmationTimeout as exc:
         event.status = RecoveryStatus.TERMINAL
         event.message = str(exc)
@@ -76,13 +93,30 @@ async def handle_human_intervention(
         return event
 
     if approved:
+        auto = None
+        try:
+            from app.run.confirm import auto_confirm_reply
+
+            auto = auto_confirm_reply()
+        except Exception:
+            auto = None
+        if auto is True:
+            # --yes: agent will click the confirmation control.
+            event.status = RecoveryStatus.APPROVED
+            event.message = f"Auto-yes: agent will click “{label}”"
+            event.details = {"confirmation": "auto_yes", "handoff": "agent_clicks"}
+            await _log_event(run_logger, event)
+            return event
+        # Human already clicked in the browser — caller must not re-click.
         event.status = RecoveryStatus.APPROVED
-        event.message = "Human intervention: approved"
+        event.message = f"Human completed “{label}” in the browser"
+        event.details = {"confirmation": "resume", "handoff": "human_clicked"}
         await _log_event(run_logger, event)
         return event
 
     event.status = RecoveryStatus.REJECTED
-    event.message = "Human intervention: rejected"
+    event.message = f"Human declined: “{label}” was not confirmed"
+    event.details = {"confirmation": "abort"}
     await _log_event(run_logger, event)
     await save_mid_run_checkpoint(run_logger, checkpoints=checkpoints, event=event)
     return event

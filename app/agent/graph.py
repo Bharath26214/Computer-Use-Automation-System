@@ -39,7 +39,7 @@ Rules:
 - Do not invent balances, transfer IDs, or amounts. Only report numbers from the page observation or a read result.
 - Sign in first if the page is a login form. Login is username-only (member ID = letters + three digits). Never ask for or fill a password.
 - If the current page is already Dashboard, Transfer, or Transactions, you are signed in. Do not navigate to login again.
-- For opening an account: after login, on the dashboard fill Account name and Use (Personal or Business), then click Open Checking Account or Open Savings Account. Atlas Bank generates the account ID. You may hold one Checking and one Savings account only; if both already exist, finish that additional accounts are not allowed. If that account card is already visible and the Open button is not, the account exists — finish with that.
+- For opening an account: after login, on the dashboard fill Account name, then fill Use with Personal or Business (dropdown — never click “Use Personal”), then click Open Checking Account or Open Savings Account. Atlas Bank generates the account ID. You may hold one Checking and one Savings account only; if both already exist, finish that additional accounts are not allowed. If that account card is already visible and the Open button is not, the account exists — finish with that.
 - For a balance lookup: after login, go to the dashboard if needed, read the requested account, then finish.
 - For a transfer: after login, click Transfer Money, fill From Account, To Account, and Amount, click Review Transfer, click Confirm Transfer, click Transactions, read transaction-table, then finish. Report only the debit and credit rows for that transfer (Date, Description, Account, Amount, Type, Status). Do not keep transferring.
 - Never click Delete unless this goal is an explicit confirmed delete_account flow.
@@ -78,8 +78,9 @@ This task is to open a {account} account.
 Account name: {current.params.get("account_name") or account}
 Use: {current.params.get("account_use") or "Personal"}
 Do not ask for or fill an Account ID; the bank generates it.
-On the dashboard fill Account name and Use, then click Open {account} Account.
-After Open {account} Account succeeds, finish: {account} account created.
+On the dashboard fill Account name, fill Use (Personal or Business dropdown — do not click “Use Personal”), then click Open {account} Account.
+A confirmation page appears — the runtime pauses for Yes, Confirm in the browser.
+After that succeeds, finish: {account} account created.
 If both Checking and Savings accounts are already on the dashboard before you open one, finish: You already have Checking and Savings accounts. Additional accounts are not allowed.
 If {account} Account is already on the dashboard and Open {account} Account is not (and you did not just open it), finish: {account} account already exists.
 Do not transfer funds and do not look up a different account.
@@ -93,6 +94,8 @@ To Account: {parsed["to_account"]}
 Amount: {parsed["amount"]}
 Memo: {parsed["memo"] or "(leave blank)"}
 Follow the transfer flow once. Do not look up a balance instead.
+For amounts over $5000, after Review Transfer the runtime pauses so you click
+Confirm Transfer in the browser (then resume). Smaller amounts: agent may Confirm.
 After Confirm Transfer, click Transactions, read transaction-table, then finish with only the matching debit and credit rows.
 """
     elif current and current.kind == "get_balance":
@@ -106,8 +109,12 @@ Do not open an account and do not transfer funds.
         account = current.params.get("account") or "Checking"
         task_hint = f"""
 This is a confirmed delete of the {account} account.
-On the dashboard click Delete {account} Account, then read open-account-message and finish.
-Do not transfer funds and do not open accounts.
+If {account} still has a balance: click Delete {account} Account, approve Transfer
+funds (Yes) on the app page (then resume), let the transfer complete, click Delete
+again, and confirm deletion (Yes, Confirm) on the app (then resume again).
+If balance is already zero: click Delete {account} Account, confirm on the app, resume.
+After deletion, read open-account-message and finish.
+Do not open accounts.
 """
     prompt = f"""Goal: {state["goal"]}
 {task_hint}
@@ -274,9 +281,14 @@ def build_agent(
                 reason="max_iterations",
             )
         else:
-            # Discovery always asks the LLM; no hardcoded shortcuts.
-            action = await _choose_action(state, run_logger=run_logger)
-            used_llm = True
+            # Deterministic open-account steps when the Open button is visible;
+            # otherwise ask the LLM (avoids inventing clicks like “Use Personal”).
+            shortcut = _shortcut_action(state)
+            if shortcut is not None:
+                action = shortcut
+            else:
+                action = await _choose_action(state, run_logger=run_logger)
+                used_llm = True
         print(f"[decide] {action.action} target={action.target} value={action.value}")
         dumped = action.model_dump()
         if run_logger is not None and used_llm:

@@ -1,0 +1,11 @@
+{"step": 1, "type": "operator", "operator": "open_account/v1", "mode": "replay"}
+{"step": 2, "type": "guardrail", "action": "fill", "target": "Account name", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/dashboard)", "expected_page": "/dashboard", "actual_page": "http://localhost:5173/dashboard"}
+{"step": 3, "type": "fill", "target": "Account name", "value": "Travel Fund", "risk": "low"}
+{"step": 4, "type": "verify", "checkpoint": "step_completed", "status": "passed"}
+{"step": 5, "type": "guardrail", "action": "fill", "target": "Use", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/dashboard)", "expected_page": "/dashboard", "actual_page": "http://localhost:5173/dashboard"}
+{"step": 6, "type": "fill", "target": "Use", "value": "Personal", "risk": "low"}
+{"step": 7, "type": "verify", "checkpoint": "step_completed", "status": "passed"}
+{"step": 8, "type": "guardrail", "action": "click", "target": "Open Savings Account", "status": "allowed", "risk": "high", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/dashboard)", "expected_page": "/dashboard", "actual_page": "http://localhost:5173/dashboard"}
+{"step": 9, "type": "click", "target": "Open Savings Account", "risk": "high"}
+{"step": 10, "type": "verify", "checkpoint": "step_completed", "status": "passed"}
+{"step": 11, "type": "task_result", "operator": "open_account", "status": "pass", "outcome": "Account opened", "outcome_code": "account_opened", "outcome_source": "dom"}

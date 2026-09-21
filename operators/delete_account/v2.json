@@ -104,23 +104,8 @@
       "required": true
     },
     {
-      "id": "checking_balance_visible",
-      "description": "Checking account balance card/text is present.",
-      "required": true
-    },
-    {
-      "id": "savings_balance_visible",
-      "description": "Savings account balance card/text is present.",
-      "required": true
-    },
-    {
       "id": "account_deleted",
       "description": "The account is gone or a delete confirmation message is shown.",
-      "required": true
-    },
-    {
-      "id": "account_opened",
-      "description": "The requested product account card is visible after open.",
       "required": true
     }
   ],

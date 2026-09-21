@@ -1,0 +1,23 @@
+{"step": 1, "type": "operator", "operator": "transfer_funds/v1", "mode": "replay"}
+{"step": 2, "type": "guardrail", "action": "click", "target": "Transfer Money", "status": "allowed", "risk": "medium", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/dashboard)", "actual_page": "http://localhost:5173/dashboard"}
+{"step": 3, "type": "click", "target": "Transfer Money", "risk": "medium"}
+{"step": 4, "type": "verify", "checkpoint": "transfer_form_visible", "status": "passed"}
+{"step": 5, "type": "guardrail", "action": "fill", "target": "From Account", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/transfer)", "expected_page": "/transfer", "actual_page": "http://localhost:5173/transfer"}
+{"step": 6, "type": "fill", "target": "From Account", "value": "Checking", "risk": "low"}
+{"step": 7, "type": "verify", "checkpoint": "from_account_filled", "status": "passed"}
+{"step": 8, "type": "guardrail", "action": "fill", "target": "To Account", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/transfer)", "expected_page": "/transfer", "actual_page": "http://localhost:5173/transfer"}
+{"step": 9, "type": "fill", "target": "To Account", "value": "Savings", "risk": "low"}
+{"step": 10, "type": "verify", "checkpoint": "to_account_filled", "status": "passed"}
+{"step": 11, "type": "guardrail", "action": "fill", "target": "Amount", "status": "allowed", "risk": "medium", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/transfer)", "expected_page": "/transfer", "actual_page": "http://localhost:5173/transfer"}
+{"step": 12, "type": "fill", "target": "Amount", "value": "6000", "risk": "medium"}
+{"step": 13, "type": "verify", "checkpoint": "amount_filled", "status": "passed"}
+{"step": 14, "type": "guardrail", "action": "click", "target": "Review Transfer", "status": "allowed", "risk": "medium", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/transfer)", "expected_page": "/transfer", "actual_page": "http://localhost:5173/transfer"}
+{"step": 15, "type": "click", "target": "Review Transfer", "risk": "medium"}
+{"step": 16, "type": "verify", "checkpoint": "transfer_review_visible", "status": "passed"}
+{"step": 17, "type": "guardrail", "action": "click", "target": "Confirm Transfer", "status": "require_approval", "risk": "high", "guardrail_decision": "require_approval", "rule": "hitl_required", "message": "Confirmation page open (risk=high): click \u201cConfirm Transfer\u201d in the browser, then type resume.", "expected_page": "/transfer", "actual_page": "http://localhost:5173/transfer"}
+{"step": 18, "type": "error", "kind": "human_intervention", "message": "Confirmation page open (risk=high): click \u201cConfirm Transfer\u201d in the browser, then type resume.", "status": "retrying", "action": "click", "target": "Confirm Transfer", "attempt": 0, "details": {}}
+{"step": 19, "type": "error", "kind": "human_intervention", "message": "Human declined: \u201cConfirm Transfer\u201d was not confirmed", "status": "rejected", "action": "click", "target": "Confirm Transfer", "attempt": 0, "details": {"confirmation": "abort"}}
+{"step": 20, "type": "outcome", "outcome_code": "human_did_not_confirm", "outcome_source": "hitl", "evidence": {"status": "rejected", "reason": "rejected"}}
+{"step": 21, "type": "guardrail", "action": "click", "target": "Confirm Transfer", "status": "blocked", "risk": "high", "guardrail_decision": "block", "rule": "hitl_denied", "message": "Human declined: \u201cConfirm Transfer\u201d was not confirmed", "expected_page": "/transfer", "actual_page": "http://localhost:5173/transfer"}
+{"step": 22, "type": "outcome", "outcome_code": "human_did_not_confirm", "outcome_source": "guardrail", "evidence": {"rule": "hitl_denied", "message": "Human declined: \u201cConfirm Transfer\u201d was not confirmed"}}
+{"step": 23, "type": "task_result", "operator": "transfer_funds", "status": "failed", "outcome": "Human did not confirm", "outcome_code": "human_did_not_confirm", "outcome_source": "explicit"}

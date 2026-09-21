@@ -3,10 +3,15 @@
   "type": "discovery",
   "goal": "What is my checking account balance?",
   "target_url": "http://localhost:5173/login",
-  "started_at": "2026-09-20T22:53:50Z",
-  "ended_at": "2026-09-20T22:53:55Z",
+  "started_at": "2026-09-21T16:49:38Z",
+  "ended_at": "2026-09-21T16:49:44Z",
   "status": "failed",
-  "outcome": "Hard failure",
+  "outcome": "Human did not confirm",
+  "outcome_code": "human_did_not_confirm",
+  "outcome_source": "explicit",
+  "outcome_evidence": {
+    "outcome_code": "human_did_not_confirm"
+  },
   "llm_used": false,
   "llm_model": null,
   "model_turns": 0,
@@ -48,7 +53,7 @@
     }
   ],
   "checkpoints": {
-    "saved_at": "2026-09-20T22:53:55Z",
+    "saved_at": "2026-09-21T16:49:44Z",
     "run_id": "run_013",
     "checkpoints": {},
     "error": {
@@ -78,7 +83,12 @@
   "task_results": [
     {
       "status": "failed",
-      "outcome": "Hard failure",
+      "outcome": "Human did not confirm",
+      "outcome_code": "human_did_not_confirm",
+      "outcome_source": "explicit",
+      "outcome_evidence": {
+        "outcome_code": "human_did_not_confirm"
+      },
       "artifact": "lookup_balance"
     }
   ],

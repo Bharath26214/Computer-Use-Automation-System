@@ -9,7 +9,7 @@ def classify_action_risk(action: dict | None) -> RiskLevel:
 
     navigation / read → low
     form fills, review → medium
-    confirm transfer / delete / open account → high
+    confirm transfer / Yes Confirm / delete / open account → high
     """
     action = action or {}
     name = str(action.get("action") or "").strip().lower()
@@ -27,6 +27,10 @@ def classify_action_risk(action: dict | None) -> RiskLevel:
         return RiskLevel.LOW
     if name == "click":
         if "confirm transfer" in target:
+            return RiskLevel.HIGH
+        if "yes" in target and "confirm" in target:
+            return RiskLevel.HIGH
+        if target.startswith("confirm-delete") or target.startswith("confirm-open"):
             return RiskLevel.HIGH
         if "delete" in target and "account" in target:
             return RiskLevel.HIGH

@@ -10,7 +10,8 @@
     "height": 900
   },
   "viewports_validated": [
-    "desktop"
+    "desktop",
+    "mobile"
   ],
   "error_handling": {},
   "inputs": {
@@ -77,6 +78,19 @@
     },
     {
       "id": "step_2",
+      "type": "fill",
+      "description": "Select account use \u2014 fill Use",
+      "risk": "low",
+      "target": {
+        "strategy": "label",
+        "value": "Use",
+        "robustness": "Locate the control by accessible label text shown beside the field.",
+        "interaction": "dom"
+      },
+      "value": "{{account_use}}"
+    },
+    {
+      "id": "step_3",
       "type": "click",
       "description": "Open account \u2014 click Open {{account}} Account",
       "risk": "high",
@@ -112,6 +126,6 @@
     }
   ],
   "query_signatures": [
-    "open a savings account named travel fund for use personal"
+    "open a savings account named travel fund use personal"
   ]
 }

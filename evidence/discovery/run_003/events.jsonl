@@ -24,26 +24,4 @@
 {"step": 24, "type": "guardrail", "action": "click", "target": "Transactions", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/transfer)", "actual_page": "http://localhost:5173/transfer"}
 {"step": 25, "type": "click", "target": "Transactions", "risk": "low"}
 {"step": 26, "type": "verify", "checkpoint": "transactions_visible", "status": "passed"}
-{"step": 27, "type": "guardrail", "action": "read", "target": "transaction-table", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/transactions)", "expected_page": "/transactions", "actual_page": "http://localhost:5173/transactions"}
-{"step": 28, "type": "read", "target": "transaction-table", "risk": "low"}
-{"step": 29, "type": "verify", "checkpoint": "balance_visible", "status": "passed"}
-{"step": 30, "type": "operator", "operator": "delete_account", "mode": "discovery"}
-{"step": 31, "type": "observe", "url": "http://localhost:5173/transactions", "title": "Atlas Bank"}
-{"step": 32, "type": "llm_decision", "action": "click", "target": "Dashboard", "turn": 1}
-{"step": 33, "type": "guardrail", "action": "click", "target": "Dashboard", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/transactions)", "actual_page": "http://localhost:5173/transactions"}
-{"step": 34, "type": "click", "target": "Dashboard", "risk": "low"}
-{"step": 35, "type": "verify", "checkpoint": "step_completed", "status": "passed"}
-{"step": 36, "type": "observe", "url": "http://localhost:5173/dashboard", "title": "Atlas Bank"}
-{"step": 37, "type": "llm_decision", "action": "click", "target": "Delete Savings Account", "turn": 2}
-{"step": 38, "type": "guardrail", "action": "click", "target": "Delete Savings Account", "status": "allowed", "risk": "high", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/dashboard)", "expected_page": "/dashboard", "actual_page": "http://localhost:5173/dashboard"}
-{"step": 39, "type": "click", "target": "Delete Savings Account", "risk": "high"}
-{"step": 40, "type": "verify", "checkpoint": "step_completed", "status": "passed"}
-{"step": 41, "type": "observe", "url": "http://localhost:5173/dashboard", "title": "Atlas Bank"}
-{"step": 42, "type": "llm_decision", "action": "read", "target": "open-account-message", "turn": 3}
-{"step": 43, "type": "guardrail", "action": "read", "target": "open-account-message", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "pass", "message": "UI page ok (/dashboard)", "expected_page": "/dashboard", "actual_page": "http://localhost:5173/dashboard"}
-{"step": 44, "type": "read", "target": "open-account-message", "risk": "low"}
-{"step": 45, "type": "verify", "checkpoint": "balance_visible", "status": "passed"}
-{"step": 46, "type": "observe", "url": "http://localhost:5173/dashboard", "title": "Atlas Bank"}
-{"step": 47, "type": "llm_decision", "action": "finish", "turn": 4}
-{"step": 48, "type": "guardrail", "action": "finish", "status": "allowed", "risk": "low", "guardrail_decision": "allow", "rule": "terminal_action", "message": "Terminal action allowed"}
-{"step": 49, "type": "task_result", "operator": "delete_account", "status": "pass", "outcome": "Account deleted"}
+{"step": 27, "type": "task_result", "operator": "delete_account", "status": "pass", "outcome": "Account deleted", "outcome_code": "account_deleted", "outcome_source": "dom"}

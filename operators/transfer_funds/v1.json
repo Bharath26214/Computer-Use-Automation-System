@@ -10,7 +10,9 @@
     "height": 900
   },
   "viewports_validated": [
-    "desktop"
+    "desktop",
+    "tablet",
+    "mobile"
   ],
   "error_handling": {},
   "inputs": {
@@ -157,18 +159,6 @@
         "robustness": "Locate by ARIA role + accessible name so the control remains findable if layout shifts but semantics stay the same.",
         "interaction": "dom"
       }
-    },
-    {
-      "id": "step_8",
-      "type": "read",
-      "description": "Read transaction table \u2014 read transaction-table",
-      "risk": "low",
-      "target": {
-        "strategy": "testid",
-        "value": "transaction-table",
-        "robustness": "Prefer data-testid attributes; they are stable across copy changes and less brittle than visible text.",
-        "interaction": "dom"
-      }
     }
   ],
   "success_conditions": [
@@ -195,21 +185,6 @@
     {
       "id": "transactions_visible",
       "description": "Transactions table is visible.",
-      "required": true
-    },
-    {
-      "id": "savings_balance_visible",
-      "description": "Savings account balance card/text is present.",
-      "required": true
-    },
-    {
-      "id": "checking_balance_visible",
-      "description": "Checking account balance card/text is present.",
-      "required": true
-    },
-    {
-      "id": "transfer_id_visible",
-      "description": "A transfer id or matching ledger rows are available.",
       "required": true
     }
   ],

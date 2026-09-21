@@ -1,21 +1,63 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AccountCard } from '../components/AccountCard'
+import { ConfirmAction } from '../components/ConfirmAction'
 import { OpenAccountCard, type OpenAccountDetails } from '../components/OpenAccountCard'
 import { useBank } from '../utils/bank'
-import { formatSignedCurrency, sortTransactionsByDate } from '../utils/format'
+import { formatCurrency, formatSignedCurrency, roundMoney, sortTransactionsByDate } from '../utils/format'
+
+type PendingOpen = {
+  accountName: 'Checking' | 'Savings'
+  details: OpenAccountDetails
+}
 
 export function Dashboard() {
   const navigate = useNavigate()
   const { currentMember, accounts, transactions, openAccount, deleteAccount } = useBank()
   const [message, setMessage] = useState('')
   const [messageError, setMessageError] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<'Checking' | 'Savings' | null>(null)
+  const [pendingTransferBeforeDelete, setPendingTransferBeforeDelete] = useState<
+    'Checking' | 'Savings' | null
+  >(null)
+  const [pendingOpen, setPendingOpen] = useState<PendingOpen | null>(null)
   const checking = accounts.find((account) => account.id === 'checking')
   const savings = accounts.find((account) => account.id === 'savings')
   const recent = sortTransactionsByDate(transactions).slice(0, 5)
 
-  function handleOpen(accountName: 'Checking' | 'Savings', details: OpenAccountDetails) {
+  function otherAccount(accountName: 'Checking' | 'Savings'): 'Checking' | 'Savings' {
+    return accountName === 'Checking' ? 'Savings' : 'Checking'
+  }
+
+  function handleOpenRequest(accountName: 'Checking' | 'Savings', details: OpenAccountDetails) {
+    setPendingDelete(null)
+    setPendingTransferBeforeDelete(null)
+    setPendingOpen({ accountName, details })
+    setMessage('')
+  }
+
+  function handleDeleteRequest(accountName: 'Checking' | 'Savings') {
+    setPendingOpen(null)
+    setMessage('')
+    const account = accounts.find((item) =>
+      accountName === 'Checking' ? item.id === 'checking' : item.id === 'savings',
+    )
+    if (account && roundMoney(account.balance) > 0) {
+      setPendingDelete(null)
+      setPendingTransferBeforeDelete(accountName)
+      return
+    }
+    setPendingTransferBeforeDelete(null)
+    setPendingDelete(accountName)
+  }
+
+  function confirmOpen() {
+    if (!pendingOpen) {
+      return
+    }
+    const { accountName, details } = pendingOpen
     const error = openAccount(accountName, details)
+    setPendingOpen(null)
     if (error) {
       setMessageError(true)
       setMessage(error)
@@ -25,8 +67,26 @@ export function Dashboard() {
     setMessage(`${details.name} account opened.`)
   }
 
-  function handleDelete(accountName: 'Checking' | 'Savings') {
+  function confirmTransferBeforeDelete() {
+    if (!pendingTransferBeforeDelete) {
+      return
+    }
+    const accountName = pendingTransferBeforeDelete
+    const other = otherAccount(accountName)
+    setPendingTransferBeforeDelete(null)
+    setMessageError(false)
+    setMessage(
+      `Transfer funds approved: move remaining ${accountName} balance to ${other}, then delete ${accountName}.`,
+    )
+  }
+
+  function confirmDelete() {
+    if (!pendingDelete) {
+      return
+    }
+    const accountName = pendingDelete
     const error = deleteAccount(accountName)
+    setPendingDelete(null)
     if (error) {
       setMessageError(true)
       setMessage(error)
@@ -35,6 +95,12 @@ export function Dashboard() {
     setMessageError(false)
     setMessage(`${accountName} account deleted.`)
   }
+
+  const transferSource = pendingTransferBeforeDelete
+    ? accounts.find((item) =>
+        pendingTransferBeforeDelete === 'Checking' ? item.id === 'checking' : item.id === 'savings',
+      )
+    : null
 
   return (
     <section data-testid="dashboard">
@@ -55,6 +121,43 @@ export function Dashboard() {
         </button>
       </div>
 
+      {pendingTransferBeforeDelete && transferSource ? (
+        <ConfirmAction
+          title="Transfer funds before delete?"
+          body={`Your ${pendingTransferBeforeDelete} account has ${formatCurrency(transferSource.balance)}. Transfer the remaining balance to ${otherAccount(pendingTransferBeforeDelete)}, then delete the account?`}
+          confirmTestId={`confirm-transfer-before-delete-${pendingTransferBeforeDelete.toLowerCase()}`}
+          cancelTestId="confirm-cancel"
+          confirmLabel="Yes"
+          cancelLabel="No"
+          onConfirm={confirmTransferBeforeDelete}
+          onCancel={() => setPendingTransferBeforeDelete(null)}
+        />
+      ) : null}
+
+      {pendingDelete ? (
+        <ConfirmAction
+          title={`Confirm Delete ${pendingDelete} Account`}
+          body={`Are you sure you want to permanently delete your ${pendingDelete} account? This cannot be undone.`}
+          confirmTestId={`confirm-delete-${pendingDelete.toLowerCase()}`}
+          confirmLabel="Yes, Confirm"
+          cancelLabel="No"
+          onConfirm={confirmDelete}
+          onCancel={() => setPendingDelete(null)}
+        />
+      ) : null}
+
+      {pendingOpen ? (
+        <ConfirmAction
+          title={`Confirm Open ${pendingOpen.accountName} Account`}
+          body={`Open a ${pendingOpen.accountName} account named “${pendingOpen.details.name}” for ${pendingOpen.details.use} use?`}
+          confirmTestId={`confirm-open-${pendingOpen.accountName.toLowerCase()}`}
+          confirmLabel="Yes, Confirm"
+          cancelLabel="No"
+          onConfirm={confirmOpen}
+          onCancel={() => setPendingOpen(null)}
+        />
+      ) : null}
+
       {message ? (
         <p
           role="status"
@@ -72,19 +175,25 @@ export function Dashboard() {
           <AccountCard
             account={checking}
             testId="checking-account"
-            onDelete={() => handleDelete('Checking')}
+            onDelete={() => handleDeleteRequest('Checking')}
           />
         ) : (
-          <OpenAccountCard accountName="Checking" onOpen={(details) => handleOpen('Checking', details)} />
+          <OpenAccountCard
+            accountName="Checking"
+            onOpen={(details) => handleOpenRequest('Checking', details)}
+          />
         )}
         {savings ? (
           <AccountCard
             account={savings}
             testId="savings-account"
-            onDelete={() => handleDelete('Savings')}
+            onDelete={() => handleDeleteRequest('Savings')}
           />
         ) : (
-          <OpenAccountCard accountName="Savings" onOpen={(details) => handleOpen('Savings', details)} />
+          <OpenAccountCard
+            accountName="Savings"
+            onOpen={(details) => handleOpenRequest('Savings', details)}
+          />
         )}
       </div>
 
